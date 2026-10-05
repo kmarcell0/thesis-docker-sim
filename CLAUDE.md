@@ -55,7 +55,8 @@ ws/                       colcon workspace, mounted in the container at /ws
   (std_msgs/Float64, N) and `/asv/thrusters/{left,right}/pos` (rad).
 - Steering sign: a POSITIVE pod angle turns the boat RIGHT (pods are behind the
   centre of gravity). `asv_sim::mix()` takes steer > 0 = turn left and outputs
-  pod_angle = -steer. Not yet confirmed in Gazebo - Step 1 of the plan checks it.
+  pod_angle = -steer. **Confirmed in Gazebo** (Step 1): pods at −0.4 rad →
+  positive yaw rate (+0.15 rad/s) → boat turns LEFT as expected.
 - Ground truth: `/asv/ground_truth/odom` (nav_msgs/Odometry; pose in world,
   twist in the BODY frame: twist.linear.x = forward speed, twist.angular.z = yaw rate).
 - After changing `config/asv.yaml`: `python3 tools/make_asv.py` (writes the
@@ -79,7 +80,11 @@ docker compose exec -T sim bash -ic "pkill -f 'ros2 launch'; pkill -f 'gz sim'; 
 Use `timeout` for anything that waits for messages, so commands never hang.
 
 ## Known state / caveats
-- Drag coefficients in `config/asv.yaml` (hydrodynamics) are uncalibrated
-  guesses; the simulated boat's speed/turning are indicative only.
+- Drag model (xU=4, xUU=6) matches Gazebo almost exactly (Step 1 actuator
+  check): 10 N → 1.00 m/s, 20 N → 1.52 m/s, 40 N → 2.27 m/s, all <0.1%
+  error. This means feedforward thrust in the speed controller will be
+  accurate; a small PI correction should suffice.
+- Steering sign and differential thrust both confirmed (Step 1): negative pod
+  angle → positive yaw rate (left turn), left−/right+ thrust → left turn.
 - `docs/HOW_IT_WORKS.md` documents the generator in depth; keep it accurate
   when changing `tools/asvgen/`.
