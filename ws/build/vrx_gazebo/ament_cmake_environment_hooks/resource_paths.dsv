@@ -1,0 +1,2 @@
+prepend-non-duplicate;GZ_SIM_RESOURCE_PATH;/ws/install/vrx_gazebo/share/
+prepend-non-duplicate;GZ_SIM_RESOURCE_PATH;/ws/install/vrx_gazebo/share/vrx_gazebo/models

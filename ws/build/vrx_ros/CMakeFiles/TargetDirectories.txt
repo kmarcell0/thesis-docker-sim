@@ -1,0 +1,11 @@
+/ws/build/vrx_ros/CMakeFiles/uninstall.dir
+/ws/build/vrx_ros/CMakeFiles/vrx_ros_uninstall.dir
+/ws/build/vrx_ros/CMakeFiles/optical_frame_publisher.dir
+/ws/build/vrx_ros/CMakeFiles/pose_tf_broadcaster.dir
+/ws/build/vrx_ros/CMakeFiles/test.dir
+/ws/build/vrx_ros/CMakeFiles/edit_cache.dir
+/ws/build/vrx_ros/CMakeFiles/rebuild_cache.dir
+/ws/build/vrx_ros/CMakeFiles/list_install_components.dir
+/ws/build/vrx_ros/CMakeFiles/install.dir
+/ws/build/vrx_ros/CMakeFiles/install/local.dir
+/ws/build/vrx_ros/CMakeFiles/install/strip.dir

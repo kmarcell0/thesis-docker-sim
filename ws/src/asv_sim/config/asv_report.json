@@ -1,0 +1,383 @@
+{
+  "name": "asv",
+  "fingerprint": "dcee21334fd0",
+  "mass": {
+    "total_kg": 18.191,
+    "total_lbs": 40.1,
+    "cog": [
+      -0.0179,
+      0.0,
+      0.1265
+    ],
+    "groups_kg": {
+      "structure": 9.0,
+      "components": 7.0,
+      "sensors": 0.791,
+      "propulsion": 1.4
+    },
+    "items": [
+      {
+        "name": "hull left",
+        "group": "structure",
+        "kg": 2.5,
+        "xyz": [
+          0,
+          0.33,
+          0
+        ]
+      },
+      {
+        "name": "hull right",
+        "group": "structure",
+        "kg": 2.5,
+        "xyz": [
+          0,
+          -0.33,
+          0
+        ]
+      },
+      {
+        "name": "deck",
+        "group": "structure",
+        "kg": 4.0,
+        "xyz": [
+          0,
+          0,
+          0.16
+        ]
+      },
+      {
+        "name": "electronics",
+        "group": "components",
+        "kg": 2.0,
+        "xyz": [
+          -0.25,
+          0.0,
+          0.225
+        ]
+      },
+      {
+        "name": "battery",
+        "group": "components",
+        "kg": 5.0,
+        "xyz": [
+          0.2,
+          0.0,
+          0.225
+        ]
+      },
+      {
+        "name": "lidar",
+        "group": "sensors",
+        "kg": 0.265,
+        "xyz": [
+          0.25,
+          0.0,
+          0.62
+        ]
+      },
+      {
+        "name": "zed",
+        "group": "sensors",
+        "kg": 0.166,
+        "xyz": [
+          0.42,
+          0.0,
+          0.33
+        ]
+      },
+      {
+        "name": "cam_wide_front",
+        "group": "sensors",
+        "kg": 0.06,
+        "xyz": [
+          0.52,
+          0.0,
+          0.22
+        ]
+      },
+      {
+        "name": "gnss_primary",
+        "group": "sensors",
+        "kg": 0.15,
+        "xyz": [
+          -0.76,
+          -0.33,
+          0.185
+        ]
+      },
+      {
+        "name": "gnss_secondary",
+        "group": "sensors",
+        "kg": 0.15,
+        "xyz": [
+          0.76,
+          0.33,
+          0.185
+        ]
+      },
+      {
+        "name": "left pod",
+        "group": "propulsion",
+        "kg": 0.595,
+        "xyz": [
+          -0.7,
+          0.33,
+          -0.14
+        ]
+      },
+      {
+        "name": "left propeller",
+        "group": "propulsion",
+        "kg": 0.10500000000000001,
+        "xyz": [
+          -0.76,
+          0.33,
+          -0.17
+        ]
+      },
+      {
+        "name": "right pod",
+        "group": "propulsion",
+        "kg": 0.595,
+        "xyz": [
+          -0.7,
+          -0.33,
+          -0.14
+        ]
+      },
+      {
+        "name": "right propeller",
+        "group": "propulsion",
+        "kg": 0.10500000000000001,
+        "xyz": [
+          -0.76,
+          -0.33,
+          -0.17
+        ]
+      }
+    ]
+  },
+  "hydrostatics": {
+    "draft_m": 0.0455,
+    "waterline_z": -0.0645,
+    "buoyancy_reserve": 0.701,
+    "gm_roll_m": 3.289,
+    "gm_pitch_m": 6.48,
+    "heel_deg": 0.0,
+    "trim_deg": 0.16,
+    "roll_period_s": 0.3,
+    "pitch_period_s": 0.32,
+    "spawn_z": 0.084,
+    "sim_pitch_stiffness_ratio": 0.9375
+  },
+  "roboboat": {
+    "size_m": [
+      1.61,
+      0.88,
+      0.885
+    ],
+    "fits_box": true,
+    "weight_lbs": 40.1,
+    "weight_score": 109.9,
+    "thrust_lbf": 22.5,
+    "thrust_weight_score": 56.0
+  },
+  "layout": {
+    "conflicts": [],
+    "placement": [],
+    "ok": true
+  },
+  "sensors": {
+    "lidar": {
+      "height_above_water_m": 0.684,
+      "upside_down": true,
+      "elevation_deg": [
+        -52.0,
+        7.0
+      ],
+      "beam_spacing_deg": 1.51,
+      "points_per_scan": 20000,
+      "water_ring_m": 0.53,
+      "beams_on_targets": {
+        "A-0 buoy": {
+          "1": 4,
+          "2": 3,
+          "3": 2,
+          "5": 1,
+          "10": 1,
+          "20": 0,
+          "40": 0
+        },
+        "A-2 buoy": {
+          "1": 9,
+          "2": 6,
+          "3": 4,
+          "5": 2,
+          "10": 1,
+          "20": 0,
+          "40": 1
+        },
+        "Sur-Mark buoy": {
+          "1": 28,
+          "2": 18,
+          "3": 13,
+          "5": 7,
+          "10": 4,
+          "20": 1,
+          "40": 1
+        }
+      },
+      "max_distance_2_beams_m": {
+        "A-0 buoy": 4.75,
+        "A-2 buoy": 10.75,
+        "Sur-Mark buoy": 18.75
+      },
+      "sees_own_boat": [
+        "hull left bow",
+        "hull left stern",
+        "hull right bow",
+        "hull right stern",
+        "deck front left corner",
+        "deck front right corner",
+        "deck rear left corner",
+        "deck rear right corner",
+        "gnss_primary_antenna",
+        "gnss_primary_antenna post",
+        "gnss_secondary_antenna",
+        "gnss_secondary_antenna post"
+      ],
+      "near_field": {
+        "gap_ahead_m": 0.2,
+        "gap_ahead_centreline_m": 0.0,
+        "gap_behind_m": 0.4,
+        "gap_sides_m": 0.22,
+        "coverage_near_band": 0.962,
+        "coverage_front_lane": 0.968,
+        "self_hit_share": 0.192
+      },
+      "type": "lidar",
+      "spec": "livox_mid360"
+    },
+    "zed": {
+      "stereo": true,
+      "resolution": [
+        1280,
+        720
+      ],
+      "fov_deg": [
+        72.0,
+        44.5
+      ],
+      "focal_px": 880.9,
+      "height_above_water_m": 0.394,
+      "water_visible_from_m": 0.89,
+      "horizon_row": 334,
+      "target_width_px": {
+        "A-0 buoy": {
+          "5": 35.8,
+          "10": 17.9,
+          "20": 8.9,
+          "40": 4.5
+        },
+        "A-2 buoy": {
+          "5": 64.8,
+          "10": 32.4,
+          "20": 16.2,
+          "40": 8.1
+        },
+        "Sur-Mark buoy": {
+          "5": 80.6,
+          "10": 40.3,
+          "20": 20.1,
+          "40": 10.1
+        }
+      },
+      "max_distance_20_px_m": {
+        "A-0 buoy": 8.9,
+        "A-2 buoy": 16.2,
+        "Sur-Mark buoy": 20.1
+      },
+      "sees_own_boat": [],
+      "depth_error_m": {
+        "2": 0.009,
+        "5": 0.059,
+        "10": 0.236,
+        "20": 0.946,
+        "35": 2.897
+      },
+      "depth_error_below_10pct_up_to_m": 42.3,
+      "type": "stereo_camera",
+      "spec": "zed2i_4mm"
+    },
+    "cam_wide_front": {
+      "stereo": false,
+      "resolution": [
+        960,
+        600
+      ],
+      "fov_deg": [
+        85.0,
+        59.6
+      ],
+      "focal_px": 523.8,
+      "height_above_water_m": 0.284,
+      "water_visible_from_m": 0.24,
+      "horizon_row": 109,
+      "target_width_px": {
+        "A-0 buoy": {
+          "5": 21.3,
+          "10": 10.6,
+          "20": 5.3,
+          "40": 2.7
+        },
+        "A-2 buoy": {
+          "5": 38.6,
+          "10": 19.3,
+          "20": 9.6,
+          "40": 4.8
+        },
+        "Sur-Mark buoy": {
+          "5": 47.9,
+          "10": 24.0,
+          "20": 12.0,
+          "40": 6.0
+        }
+      },
+      "max_distance_20_px_m": {
+        "A-0 buoy": 5.3,
+        "A-2 buoy": 9.6,
+        "Sur-Mark buoy": 12.0
+      },
+      "sees_own_boat": [],
+      "type": "camera",
+      "spec": "arducam_ar0234"
+    },
+    "imu": {
+      "rate_hz": 200,
+      "gyro_noise_deg_s": 0.0537,
+      "accel_noise_mg": 0.99,
+      "lever_arm_from_cog_m": [
+        -0.102,
+        0.0,
+        0.064
+      ],
+      "centripetal_at_0.5rad_s_m_s2": 0.0301,
+      "type": "imu",
+      "spec": "pixhawk6x_icm45686"
+    },
+    "gnss": {
+      "baseline_m": 1.657,
+      "baseline_heading_offset_deg": 23.47,
+      "heading_accuracy_deg": 0.06,
+      "two_independent_fixes_deg": 0.391,
+      "primary_lever_arm_m": [
+        -0.76,
+        -0.33,
+        0.185
+      ],
+      "type": "gnss_dual",
+      "spec": "unicore_um982_rtk"
+    }
+  }
+}

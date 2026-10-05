@@ -1,0 +1,128 @@
+[0.009s] Invoking command in '/ws/build/vrx_gazebo': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake /ws/src/vrx/vrx_urdf/vrx_gazebo -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/ws/install/vrx_gazebo
+[0.053s] -- The C compiler identification is GNU 13.3.0
+[0.094s] -- The CXX compiler identification is GNU 13.3.0
+[0.104s] -- Detecting C compiler ABI info
+[0.168s] -- Detecting C compiler ABI info - done
+[0.175s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.175s] -- Detecting C compile features
+[0.175s] -- Detecting C compile features - done
+[0.181s] -- Detecting CXX compiler ABI info
+[0.253s] -- Detecting CXX compiler ABI info - done
+[0.260s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.260s] -- Detecting CXX compile features
+[0.260s] -- Detecting CXX compile features - done
+[0.263s] -- Found ament_cmake: 2.5.6 (/opt/ros/jazzy/share/ament_cmake/cmake)
+[0.371s] -- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+[0.421s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[0.581s] -- Configuring done (0.6s)
+[0.584s] -- Generating done (0.0s)
+[0.585s] -- Build files have been written to: /ws/build/vrx_gazebo
+[0.588s] Invoked command in '/ws/build/vrx_gazebo' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake /ws/src/vrx/vrx_urdf/vrx_gazebo -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/ws/install/vrx_gazebo
+[0.589s] Invoking command in '/ws/build/vrx_gazebo': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /ws/build/vrx_gazebo -- -j16 -l16
+[0.627s] Built target ament_cmake_python_symlink_vrx_gazebo
+[0.748s] running egg_info
+[0.749s] creating vrx_gazebo.egg-info
+[0.758s] writing vrx_gazebo.egg-info/PKG-INFO
+[0.758s] writing dependency_links to vrx_gazebo.egg-info/dependency_links.txt
+[0.758s] writing top-level names to vrx_gazebo.egg-info/top_level.txt
+[0.758s] writing manifest file 'vrx_gazebo.egg-info/SOURCES.txt'
+[0.784s] reading manifest file 'vrx_gazebo.egg-info/SOURCES.txt'
+[0.784s] writing manifest file 'vrx_gazebo.egg-info/SOURCES.txt'
+[0.802s] Built target ament_cmake_python_build_vrx_gazebo_egg
+[0.810s] Invoked command in '/ws/build/vrx_gazebo' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /ws/build/vrx_gazebo -- -j16 -l16
+[0.817s] Invoking command in '/ws/build/vrx_gazebo': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /ws/build/vrx_gazebo
+[0.822s] -- Install configuration: ""
+[0.822s] -- Execute custom install script
+[0.822s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/environment/resource_paths.dsv
+[0.828s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/environment/resource_paths.sh
+[0.834s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/3d_lidar/mesh/3d_Lidar_Albedo.png
+[0.839s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/3d_lidar/mesh/3d_Lidar_Metalness.png
+[0.845s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/3d_lidar/mesh/3d_Lidar_Normal.png
+[0.850s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/3d_lidar/mesh/3d_Lidar_Roughness.png
+[0.855s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/3d_lidar/mesh/3d_lidar.dae
+[0.860s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/3d_lidar/mesh/3d_lidar.png
+[0.865s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/3d_lidar/model.config
+[0.870s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/3d_lidar/model.sdf
+[0.875s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/ball_shooter/materials/Textures/Launcher_Albedo.png
+[0.880s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/ball_shooter/materials/Textures/Launcher_Metalness.png
+[0.885s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/ball_shooter/materials/Textures/Launcher_Normal.png
+[0.890s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/ball_shooter/materials/Textures/Launcher_Roughness.png
+[0.895s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/ball_shooter/meshes/Launcher_Albedo.png
+[0.900s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/ball_shooter/meshes/Launcher_BaseColor.png
+[0.907s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/ball_shooter/meshes/ball_shooter_base.dae
+[0.913s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/ball_shooter/meshes/ball_shooter_launcher.dae
+[0.918s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/ball_shooter/model.config
+[0.924s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/ball_shooter/model.sdf
+[0.929s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/battery/mesh/battery.dae
+[0.934s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/battery/mesh/battery.png
+[0.939s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/battery/mesh/battery_Albedo.png
+[0.945s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/battery/mesh/battery_Metalness.png
+[0.950s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/battery/mesh/battery_Normal.png
+[0.955s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/battery/mesh/battery_Roughness.png
+[0.960s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/battery/model.config
+[0.965s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/battery/model.sdf
+[0.970s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/blue_projectile/model.config
+[0.975s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/blue_projectile/model.sdf
+[0.980s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/cpu_cases/mesh/cpu_cases.dae
+[0.985s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/cpu_cases/mesh/cpu_cases.png
+[0.990s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/cpu_cases/mesh/cpu_cases_Albedo.png
+[0.995s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/cpu_cases/mesh/cpu_cases_Metalness.png
+[1.000s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/cpu_cases/mesh/cpu_cases_Normal.png
+[1.007s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/cpu_cases/mesh/cpu_cases_Roughness.png
+[1.013s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/cpu_cases/model.config
+[1.018s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/cpu_cases/model.sdf
+[1.023s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/mono_camera/mesh/mono_camera.dae
+[1.028s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/mono_camera/mesh/mono_camera.png
+[1.033s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/mono_camera/mesh/mono_camera_Albedo.png
+[1.038s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/mono_camera/mesh/mono_camera_Metalness.png
+[1.043s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/mono_camera/mesh/mono_camera_Normal.png
+[1.048s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/mono_camera/mesh/mono_camera_Roughness.png
+[1.053s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/mono_camera/model.config
+[1.058s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/mono_camera/model.sdf
+[1.063s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/sensor_post/mesh/sensor_post.dae
+[1.068s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/sensor_post/mesh/sensor_post.png
+[1.073s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/sensor_post/mesh/sensor_post_arm.dae
+[1.078s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/sensor_post/model.config
+[1.083s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/models/sensor_post/model.sdf
+[1.088s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/launch/generate_wamv.launch.py
+[1.093s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/launch/rviz.launch.py
+[1.098s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/config/rviz_vrx_final.rviz
+[1.104s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/config/rviz_vrx_rsp.rviz
+[1.111s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/config/wamv_config/component_compliance/bounding_boxes.yaml
+[1.117s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/config/wamv_config/component_compliance/numeric.yaml
+[1.122s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/config/wamv_config/example_component_config.yaml
+[1.127s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/config/wamv_config/example_thruster_config.yaml
+[1.132s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/config/wamv_config/thruster_compliance/bounding_boxes.yaml
+[1.137s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/config/wamv_config/thruster_compliance/numeric.yaml
+[1.142s] -- Symlinking: /ws/install/vrx_gazebo/lib/vrx_gazebo/generate_wamv.py
+[1.147s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/environment/pythonpath.sh
+[1.152s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/environment/pythonpath.dsv
+[1.158s] -- Symlinking: /ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo-1.3.0-py3.12.egg-info/PKG-INFO
+[1.163s] -- Symlinking: /ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo-1.3.0-py3.12.egg-info/SOURCES.txt
+[1.168s] -- Symlinking: /ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo-1.3.0-py3.12.egg-info/dependency_links.txt
+[1.173s] -- Symlinking: /ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo-1.3.0-py3.12.egg-info/top_level.txt
+[1.178s] -- Symlinking: /ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo/__init__.py
+[1.183s] -- Symlinking: /ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo/compliance.py
+[1.188s] -- Symlinking: /ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo/configure_wamv.py
+[1.193s] -- Symlinking: /ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo/utils.py
+[1.199s] -- Symlinking: /ws/install/vrx_gazebo/share/ament_index/resource_index/package_run_dependencies/vrx_gazebo
+[1.205s] -- Symlinking: /ws/install/vrx_gazebo/share/ament_index/resource_index/parent_prefix_path/vrx_gazebo
+[1.212s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/environment/ament_prefix_path.sh
+[1.217s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/environment/ament_prefix_path.dsv
+[1.223s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/environment/path.sh
+[1.228s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/environment/path.dsv
+[1.234s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/local_setup.bash
+[1.239s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/local_setup.sh
+[1.244s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/local_setup.zsh
+[1.251s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/local_setup.dsv
+[1.256s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/package.dsv
+[1.261s] -- Symlinking: /ws/install/vrx_gazebo/share/ament_index/resource_index/packages/vrx_gazebo
+[1.267s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/cmake/vrx_gazeboConfig.cmake
+[1.272s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/cmake/vrx_gazeboConfig-version.cmake
+[1.278s] -- Symlinking: /ws/install/vrx_gazebo/share/vrx_gazebo/package.xml
+[1.311s] Listing '/ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo'...
+[1.312s] Compiling '/ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo/__init__.py'...
+[1.312s] Compiling '/ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo/compliance.py'...
+[1.312s] Compiling '/ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo/configure_wamv.py'...
+[1.312s] Compiling '/ws/install/vrx_gazebo/lib/python3.12/site-packages/vrx_gazebo/utils.py'...
+[1.317s] Invoked command in '/ws/build/vrx_gazebo' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /ws/build/vrx_gazebo

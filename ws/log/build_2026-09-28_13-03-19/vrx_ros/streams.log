@@ -1,0 +1,93 @@
+[0.007s] Invoking command in '/ws/build/vrx_ros': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake /ws/src/vrx/vrx_ros -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/ws/install/vrx_ros
+[0.048s] -- The C compiler identification is GNU 13.3.0
+[0.089s] -- The CXX compiler identification is GNU 13.3.0
+[0.099s] -- Detecting C compiler ABI info
+[0.163s] -- Detecting C compiler ABI info - done
+[0.171s] -- Check for working C compiler: /usr/bin/cc - skipped
+[0.171s] -- Detecting C compile features
+[0.171s] -- Detecting C compile features - done
+[0.177s] -- Detecting CXX compiler ABI info
+[0.248s] -- Detecting CXX compiler ABI info - done
+[0.255s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[0.255s] -- Detecting CXX compile features
+[0.255s] -- Detecting CXX compile features - done
+[0.257s] -- Performing Test COMPILER_SUPPORTS_CXX17
+[0.322s] -- Performing Test COMPILER_SUPPORTS_CXX17 - Success
+[0.324s] -- Found ament_cmake: 2.5.6 (/opt/ros/jazzy/share/ament_cmake/cmake)
+[0.424s] -- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+[0.473s] -- Override CMake install command with custom implementation using symlinks instead of copying resources
+[0.504s] -- Found geometry_msgs: 5.3.8 (/opt/ros/jazzy/share/geometry_msgs/cmake)
+[0.538s] -- Found rosidl_generator_c: 4.6.9 (/opt/ros/jazzy/share/rosidl_generator_c/cmake)
+[0.550s] -- Found rosidl_generator_cpp: 4.6.9 (/opt/ros/jazzy/share/rosidl_generator_cpp/cmake)
+[0.563s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[0.577s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[0.612s] -- Looking for gz-msgs10 -- found version 10.4.0
+[0.617s] -- Searching for dependencies of gz-msgs10
+[0.690s] -- Found Protobuf: /usr/lib/x86_64-linux-gnu/libprotobuf.so (found version "3.21.12") 
+[0.692s] -- Looking for gz-utils2 -- found version 2.2.1
+[0.692s] -- Searching for dependencies of gz-utils2
+[0.693s] -- Looking for gz-math7 -- found version 7.7.0
+[0.694s] -- Searching for dependencies of gz-math7
+[0.694s] -- Looking for gz-utils2 -- found version 2.2.1
+[0.698s] -- Checking for module 'tinyxml2'
+[0.707s] --   Found tinyxml2, version 10.0.0
+[0.727s] -- Looking for gz-transport13 -- found version 13.6.0
+[0.727s] -- Searching for dependencies of gz-transport13
+[0.748s] -- Config-file not installed for ZeroMQ -- checking for pkg-config
+[0.750s] -- Checking for module 'libzmq >= 4'
+[0.759s] --   Found libzmq, version 4.3.5
+[0.782s] -- Found ZeroMQ: TRUE (Required is at least version "4") 
+[0.786s] -- Checking for module 'uuid'
+[0.794s] --   Found uuid, version 2.39.3
+[0.813s] -- Found UUID: TRUE  
+[0.813s] -- Looking for gz-utils2 -- found version 2.2.1
+[0.814s] -- Searching for dependencies of gz-utils2
+[0.814s] -- Searching for <gz-utils2> component [cli]
+[0.815s] -- Looking for gz-utils2-cli -- found version 2.2.1
+[0.815s] -- Searching for dependencies of gz-utils2-cli
+[0.816s] -- Looking for gz-msgs10 -- found version 10.4.0
+[0.819s] -- Found rclcpp: 28.1.22 (/opt/ros/jazzy/share/rclcpp/cmake)
+[0.870s] -- Found rmw_implementation_cmake: 7.3.3 (/opt/ros/jazzy/share/rmw_implementation_cmake/cmake)
+[0.873s] -- Found rmw_fastrtps_cpp: 8.4.4 (/opt/ros/jazzy/share/rmw_fastrtps_cpp/cmake)
+[0.931s] -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.13")  
+[0.944s] -- Found FastRTPS: /opt/ros/jazzy/include (Required is at least version "2.13") 
+[0.958s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[1.016s] -- Found ros_gz_interfaces: 1.0.24 (/opt/ros/jazzy/share/ros_gz_interfaces/cmake)
+[1.039s] -- Found sensor_msgs: 5.3.8 (/opt/ros/jazzy/share/sensor_msgs/cmake)
+[1.056s] -- Found tf2: 0.36.22 (/opt/ros/jazzy/share/tf2/cmake)
+[1.061s] -- Found tf2_msgs: 0.36.22 (/opt/ros/jazzy/share/tf2_msgs/cmake)
+[1.103s] -- Found tf2_ros: 0.36.22 (/opt/ros/jazzy/share/tf2_ros/cmake)
+[1.217s] -- Configuring done (1.2s)
+[1.229s] -- Generating done (0.0s)
+[1.233s] -- Build files have been written to: /ws/build/vrx_ros
+[1.241s] Invoked command in '/ws/build/vrx_ros' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake /ws/src/vrx/vrx_ros -DAMENT_CMAKE_SYMLINK_INSTALL=1 -DCMAKE_INSTALL_PREFIX=/ws/install/vrx_ros
+[1.241s] Invoking command in '/ws/build/vrx_ros': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /ws/build/vrx_ros -- -j16 -l16
+[1.274s] [ 25%] [32mBuilding CXX object CMakeFiles/optical_frame_publisher.dir/src/optical_frame_publisher.cc.o[0m
+[1.275s] [ 50%] [32mBuilding CXX object CMakeFiles/pose_tf_broadcaster.dir/src/pose_tf_broadcaster.cc.o[0m
+[6.318s] [ 75%] [32m[1mLinking CXX executable pose_tf_broadcaster[0m
+[6.502s] [ 75%] Built target pose_tf_broadcaster
+[8.188s] [100%] [32m[1mLinking CXX executable optical_frame_publisher[0m
+[8.454s] [100%] Built target optical_frame_publisher
+[8.462s] Invoked command in '/ws/build/vrx_ros' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --build /ws/build/vrx_ros -- -j16 -l16
+[8.462s] Invoking command in '/ws/build/vrx_ros': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /ws/build/vrx_ros
+[8.467s] -- Install configuration: ""
+[8.467s] -- Execute custom install script
+[8.468s] -- Symlinking: /ws/install/vrx_ros/lib/vrx_ros/optical_frame_publisher
+[8.473s] -- Symlinking: /ws/install/vrx_ros/lib/vrx_ros/pose_tf_broadcaster
+[8.478s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/launch/monitor_sim.py
+[8.483s] -- Symlinking: /ws/install/vrx_ros/share/ament_index/resource_index/package_run_dependencies/vrx_ros
+[8.488s] -- Symlinking: /ws/install/vrx_ros/share/ament_index/resource_index/parent_prefix_path/vrx_ros
+[8.493s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/environment/ament_prefix_path.sh
+[8.498s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/environment/ament_prefix_path.dsv
+[8.503s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/environment/path.sh
+[8.508s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/environment/path.dsv
+[8.513s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/local_setup.bash
+[8.518s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/local_setup.sh
+[8.525s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/local_setup.zsh
+[8.530s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/local_setup.dsv
+[8.535s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/package.dsv
+[8.540s] -- Symlinking: /ws/install/vrx_ros/share/ament_index/resource_index/packages/vrx_ros
+[8.545s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/cmake/vrx_rosConfig.cmake
+[8.550s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/cmake/vrx_rosConfig-version.cmake
+[8.555s] -- Symlinking: /ws/install/vrx_ros/share/vrx_ros/package.xml
+[8.561s] Invoked command in '/ws/build/vrx_ros' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/opt/ros/jazzy /usr/bin/cmake --install /ws/build/vrx_ros

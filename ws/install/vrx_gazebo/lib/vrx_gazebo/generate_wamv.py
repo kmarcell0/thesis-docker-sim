@@ -1,0 +1,1 @@
+/ws/src/vrx/vrx_urdf/vrx_gazebo/scripts/generate_wamv.py

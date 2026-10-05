@@ -1,0 +1,10 @@
+/ws/build/wamv_description/CMakeFiles/uninstall.dir
+/ws/build/wamv_description/CMakeFiles/wamv_description_uninstall.dir
+/ws/build/wamv_description/CMakeFiles/wamv_description__xacro_auto_generate.dir
+/ws/build/wamv_description/CMakeFiles/test.dir
+/ws/build/wamv_description/CMakeFiles/edit_cache.dir
+/ws/build/wamv_description/CMakeFiles/rebuild_cache.dir
+/ws/build/wamv_description/CMakeFiles/list_install_components.dir
+/ws/build/wamv_description/CMakeFiles/install.dir
+/ws/build/wamv_description/CMakeFiles/install/local.dir
+/ws/build/wamv_description/CMakeFiles/install/strip.dir

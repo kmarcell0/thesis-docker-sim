@@ -1,0 +1,57 @@
+-- The C compiler identification is GNU 13.3.0
+-- The CXX compiler identification is GNU 13.3.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/cc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found ament_cmake: 2.5.6 (/opt/ros/jazzy/share/ament_cmake/cmake)
+-- Found Python3: /usr/bin/python3 (found version "3.12.3") found components: Interpreter 
+-- Override CMake install command with custom implementation using symlinks instead of copying resources
+-- Found xacro: 2.1.1 (/opt/ros/jazzy/share/xacro/cmake)
+-- xacro: determining deps for: urdf/wamv_base.urdf.xacro ...
+-- Configuring done (0.6s)
+-- Generating done (0.0s)
+-- Build files have been written to: /ws/build/wamv_description
+[100%] [34m[1mxacro: generating urdf/wamv_base.urdf from urdf/wamv_base.urdf.xacro[0m
+[100%] Built target wamv_description__xacro_auto_generate
+-- Install configuration: ""
+-- Execute custom install script
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/environment/resource_paths.dsv
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/environment/resource_paths.sh
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/urdf/wamv_base.urdf
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/models/WAM-V-Base/mesh/WAM-V-Base.dae
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/models/WAM-V-Base/mesh/WAM-V_Albedo.png
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/models/WAM-V-Base/mesh/WAM-V_Metalness.png
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/models/WAM-V-Base/mesh/WAM-V_Normal.png
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/models/WAM-V-Base/mesh/WAM-V_Roughness.png
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/models/WAM-V-Base/mesh/WamV.png
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/models/WAM-V-Base/model.config
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/models/engine/mesh/engine.dae
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/models/engine/model.config
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/models/propeller/mesh/propeller.dae
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/models/propeller/model.config
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/urdf/battery.xacro
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/urdf/cpu_cases.xacro
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/urdf/thrusters/engine.xacro
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/urdf/wamv_base.urdf.xacro
+-- Symlinking: /ws/install/wamv_description/share/ament_index/resource_index/package_run_dependencies/wamv_description
+-- Symlinking: /ws/install/wamv_description/share/ament_index/resource_index/parent_prefix_path/wamv_description
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/environment/ament_prefix_path.sh
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/environment/ament_prefix_path.dsv
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/environment/path.sh
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/environment/path.dsv
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/local_setup.bash
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/local_setup.sh
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/local_setup.zsh
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/local_setup.dsv
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/package.dsv
+-- Symlinking: /ws/install/wamv_description/share/ament_index/resource_index/packages/wamv_description
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/cmake/wamv_descriptionConfig.cmake
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/cmake/wamv_descriptionConfig-version.cmake
+-- Symlinking: /ws/install/wamv_description/share/wamv_description/package.xml

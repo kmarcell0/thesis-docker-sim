@@ -1,0 +1,148 @@
+# asv.yaml - description of the boat. Edit this file, then regenerate:
+#     python3 tools/make_asv.py            (from ws/src/asv_sim; --help for options)
+#
+# Units: metres, kilograms, newtons, radians.
+# Boat frame (base_link): x forward, y left, z up. Origin = midway between the
+# two hulls, at the height of the hull axes, at mid hull length.
+
+name: asv
+namespace: asv            # prefix of all topics: /asv/...
+
+# ============================ FIXED DESIGN ==================================
+hull:                     # two identical cylindrical hulls (catamaran)
+  length: 1.60            # each hull
+  radius: 0.11
+  spacing: 0.66           # centre-to-centre distance between the hulls
+  mass: 2.5               # each hull
+  points: 4               # buoyancy sample points per hull (VRX Surface plugin)
+
+deck:                     # plate joining the hulls
+  length: 1.00
+  width: 0.80
+  thickness: 0.03
+  height: 0.16            # deck centre above the hull axes
+  mass: 4.0
+
+fixed_masses:             # other components that do not move between studies
+  - {name: electronics, mass: 2.0, size: [0.30, 0.20, 0.10], xyz: [-0.25, 0.0, 0.225]}
+
+thrusters:                # one steerable (azimuth) thruster under each hull
+  x: -0.70                # steering axis position along the hull
+  depth: 0.06             # propeller axis below the hull bottom
+  mass: 0.7               # each unit (pod + motor + propeller)
+  max_thrust: 50.0        # N forward (order of a Blue Robotics T200 at 16 V)
+  min_thrust: -40.0       # N reverse
+  steer_limit: 1.5708     # rad, +-90 deg
+  steer_rate: 2.0         # rad/s, how fast the pod can turn
+
+hydrodynamics:            # water drag (VRX SimpleHydrodynamics), uncalibrated
+  xU: 4.0                 # surge, linear     (taken from VRX roboboat01)
+  xUU: 6.0                # surge, quadratic
+  yV: 4.0
+  yVV: 4.0
+  zW: 20.0
+  kP: 12.0
+  kPP: 24.0
+  mQ: 36.0
+  mQQ: 35.0
+  nR: 32.0
+  nRR: 32.0
+
+# =========================== STUDY PARAMETERS ===============================
+# forward of the lidar post (the heaviest part trims the boat: CoG x ~ 0)
+battery: {mass: 5.0, size: [0.30, 0.15, 0.10], xyz: [0.20, 0.0, 0.225]}
+
+# One entry per physical sensor. Types: lidar, camera, stereo_camera, imu,
+# gnss, gnss_dual. name -> topics /asv/<name>/... and TF frames <name>_...
+# Optional mount: [x, y] = where its post stands on the deck (else: nearest
+# deck point). Lidars and cameras see posts and arms, as on the real boat.
+sensors:
+  # Livox Mid-360 hanging upside down (roll = pi), 25 cm forward of the deck
+  # centre, as high as the 3 ft height limit allows. Its post stands beside the
+  # battery (mount) with a 30 cm arm to the centre line. Chosen with
+  # tools/study_lidar_placement.py: smallest blind water ahead of the bow while
+  # keeping ~95 % of the water within 2 m of the boat in view.
+  - {name: lidar, type: lidar, spec: livox_mid360,
+     xyz: [0.25, 0.0, 0.62], rpy: [3.14159, 0, 0], mount: [0.25, 0.30]}
+
+  # ZED 2i (4 mm lens, polarizer): long-range stereo, looking ahead
+  - {name: zed, type: stereo_camera, spec: zed2i_4mm,
+     xyz: [0.42, 0.0, 0.33], rpy: [0, 0.03, 0]}
+
+  # Arducam AR0234: wide angle, tilted 20 deg down for close range
+  - {name: cam_wide_front, type: camera, spec: arducam_ar0234,
+     xyz: [0.52, 0.0, 0.22], rpy: [0, 0.35, 0]}
+  # more of them? copy the line, rename, e.g. a side camera looking left:
+  # - {name: cam_wide_left, type: camera, spec: arducam_ar0234,
+  #    xyz: [0.0, 0.38, 0.25], rpy: [0, 0.35, 1.5708]}
+
+  # Pixhawk 6X IMU, inside the electronics box, close to the centre of gravity
+  - {name: imu, type: imu, spec: pixhawk6x_icm45686, xyz: [-0.12, 0.0, 0.19]}
+
+  # Unicore UM982: antennas on posts at the two points of the boat furthest
+  # apart - the tips of diagonally opposite hulls (longest baseline = best
+  # heading). Primary (position) at the stern of the right hull, secondary at
+  # the bow of the left hull. The baseline points 23.5 deg left of the bow:
+  # configure that heading offset in the receiver (see report).
+  - {name: gnss, type: gnss_dual, spec: unicore_um982_rtk,
+     xyz: [-0.76, -0.33, 0.185], xyz_secondary: [0.76, 0.33, 0.185]}
+
+# Sensor specifications. [DS] = manufacturer datasheet, [EST] = estimate.
+sensor_specs:
+  livox_mid360:                   # Livox Mid-360 / Mid-360S
+    mass: 0.265                   # [DS] ~265 g
+    vfov: [-0.1222, 0.9076]       # [DS] -7 ... +52 deg in the sensor's own frame
+    channels: 40                  # [EST] "40-line" equivalent; the real scan pattern is
+    h_samples: 500                #   non-repetitive, simulated as a 40 x 500 grid
+                                  #   = 20,000 points per scan = [DS] 200,000 pts/s at 10 Hz
+    range: [0.1, 40.0]            # [DS] 0.1 m blind zone, 40 m at 10 % reflectivity
+    rate: 10                      # [DS] 10 Hz
+    noise: 0.02                   # [DS] range precision <= 2 cm (1 sigma) at 10 m
+
+  zed2i_4mm:                      # Stereolabs ZED 2i, 4 mm lens
+    mass: 0.166                   # [DS] 166 g
+    baseline: 0.12                # [DS] 120 mm
+    hfov: 1.2566                  # [DS] 72 deg horizontal (44 deg vertical follows from 16:9)
+    width: 1280                   # real HD720 mode (2x 1280x720, up to 60 fps);
+    height: 720                   #   max 2x 2208x1242 @ 15 fps - heavy for a laptop GPU
+    rate: 15
+    noise: 0.007
+    depth: true                   # also publish an IDEAL depth image, a stand-in for
+    depth_range: [1.5, 35.0]      #   ZED SDK depth. [DS] 4 mm lens: 1.5 m ... 35 m
+    depth_width: 640
+    depth_height: 360
+    depth_rate: 10
+
+  arducam_ar0234:                 # Arducam 2.3 MP AR0234 global shutter USB3
+    mass: 0.06                    # [EST] board + enclosure + lens
+    hfov: 1.4835                  # [DS] 85 deg horizontal with the stock M12 lens
+                                  #   (98 deg diagonal) - change if you fit a wider lens
+    width: 960                    # real 960x600 @ 80 fps mode; max 1920x1200 @ 50 fps
+    height: 600
+    rate: 30
+    noise: 0.005
+
+  pixhawk6x_icm45686:             # Pixhawk 6X (Rev 8): 3x TDK ICM-45686
+    mass: 0.0                     # counted in the electronics box
+    rate: 200                     # [EST] rate the companion computer receives
+    gyro_noise_density: 6.632e-5  # [DS] 3.8 mdps/sqrt(Hz)  -> rad/s/sqrt(Hz)
+    accel_noise_density: 6.865e-4 # [DS] 70 ug/sqrt(Hz)     -> m/s^2/sqrt(Hz)
+    gyro_bias: 0.0017             # [EST] constant bias left after calibration (1 sigma), rad/s
+    accel_bias: 0.02              # [EST] m/s^2
+    gyro_bias_drift: 0.0002       # [EST] slowly wandering bias, steady-state 1 sigma, rad/s
+    accel_bias_drift: 0.005       # [EST] m/s^2
+    bias_drift_time: 300          # [EST] correlation time of the wandering bias, s
+
+  unicore_um982_rtk:              # Unicore UM982 with RTK fix (ZED-F9P base station)
+    mass: 0.15                    # [EST] per antenna incl. mount (receiver: electronics box)
+    rate: 10                      # [DS] up to 20 Hz
+    horizontal_noise: 0.008       # [DS] 0.8 cm + 1 ppm (RMS)
+    vertical_noise: 0.015         # [DS] 1.5 cm + 1 ppm (RMS)
+    heading_accuracy_1m: 0.1      # [DS] 0.1 deg at 1 m baseline
+
+  unicore_um982_no_rtk:           # same receiver without corrections (base lost)
+    mass: 0.15
+    rate: 10
+    horizontal_noise: 1.5         # [EST] typical single-point accuracy
+    vertical_noise: 2.5           # [EST]
+    heading_accuracy_1m: 0.1      # heading works without the base station

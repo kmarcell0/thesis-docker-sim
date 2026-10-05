@@ -1,0 +1,53 @@
+=== asv design report (fingerprint dcee21334fd0) ===
+
+Layout     OK: no overlapping components, sensors or mounts
+
+Mass        18.19 kg (40.1 lbs): structure 9.0, components 7.0, sensors 0.8, propulsion 1.4
+CoG        x -0.018  y +0.000  z +0.126 m
+Draft        4.6 cm of 22 cm hull diameter (buoyancy reserve 70 % before half-submerged)
+Stability  GM roll 3.29 m, GM pitch 6.48 m
+Attitude   heel +0.00 deg (+ = to port), trim +0.16 deg (+ = bow up)
+Periods    roll 0.30 s, pitch 0.32 s (no added mass: lower bounds)
+Simulation VRX samples each hull at 4 keel points -> pitch stiffness in Gazebo is 93.8 % of the value above (1 - 1/N^2)
+Spawn at   z = 0.084 m (waterline at world z = 0)
+
+RoboBoat 2026 checks
+  size      1.61 x 0.88 x 0.89 m  (limit 1.83 x 0.91 x 0.91)
+  weight    40.1 lbs -> weight score 110
+  thrust    22.5 lbf total -> thrust/weight score 56
+
+Lidar "lidar" (upside down): 0.68 m above water, beams -52..+7 deg (1.51 deg apart), 20000 points per scan
+  lowest beam meets the water 0.5 m away (ignoring the boat)
+  blind water next to the boat (line of sight, from the hull outline): 0.20 m ahead of the bow (0.00 m on the centreline), 0.40 m behind the stern, 0.22 m beside the hulls
+  sees 97 % of the water in the lane ahead of the boat (3 m), 96 % of the water within 2 m all around; 19 % of its beams hit the own boat
+  beams on a buoy straight ahead at     1 m    2 m    3 m    5 m   10 m   20 m   40 m
+    A-0 buoy                            4      3      2      1      1      0      0
+    A-2 buoy                            9      6      4      2      1      0      1
+    Sur-Mark buoy                      28     18     13      7      4      1      1
+  >= 2 beams up to: A-0 buoy 4.8 m, A-2 buoy 10.8 m, Sur-Mark buoy 18.8 m
+  sees its own boat (12 points): hull left bow, hull left stern, hull right bow, hull right stern, deck front left corner, deck front right corner ... -> crop a box around the boat
+
+Stereo camera "zed": 1280x720 @ 15 Hz, 72 x 44 deg, 0.39 m above water, baseline 12 cm
+  sees the water from 0.9 m, horizon at image row 334 of 720
+  buoy width in pixels at             5 m    10 m    20 m    40 m
+    A-0 buoy                            36      18       9       4
+    A-2 buoy                            65      32      16       8
+    Sur-Mark buoy                       81      40      20      10
+  >= 20 px wide up to: A-0 buoy 9 m, A-2 buoy 16 m, Sur-Mark buoy 20 m
+  stereo depth error (0.25 px matching): 2 m: 0.01 m, 5 m: 0.06 m, 10 m: 0.24 m, 20 m: 0.95 m, 35 m: 2.90 m
+  depth error stays below 10 % of the distance up to 42 m
+
+Camera "cam_wide_front": 960x600 @ 30 Hz, 85 x 60 deg, 0.28 m above water
+  sees the water from 0.2 m, horizon at image row 109 of 600
+  buoy width in pixels at             5 m    10 m    20 m    40 m
+    A-0 buoy                            21      11       5       3
+    A-2 buoy                            39      19      10       5
+    Sur-Mark buoy                       48      24      12       6
+  >= 20 px wide up to: A-0 buoy 5 m, A-2 buoy 10 m, Sur-Mark buoy 12 m
+
+IMU "imu" @ 200 Hz: white noise per sample 0.054 deg/s, 0.99 mg; 0.12 m from the CoG (0.030 m/s^2 extra in a 0.5 rad/s turn)
+
+Dual GNSS "gnss": baseline 1.66 m at +23.5 deg to the bow -> heading accuracy ~0.06 deg (datasheet 0.1 deg at 1 m, scaled with 1/baseline)
+  two independently noisy fixes would give 0.39 deg -> emulate the receiver heading from ground truth + noise
+  primary antenna (position) at [-0.76, -0.33, +0.18] m from base_link
+

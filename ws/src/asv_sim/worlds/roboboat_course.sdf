@@ -1,0 +1,135 @@
+<?xml version="1.0"?>
+<!--
+  roboboat_course.sdf - RoboBoat 2026 course (navigation + docking tasks).
+
+  Based on the RoboBoat 2026 Team Handbook, section 3.2 Task Descriptions:
+    Task 1  Evacuation Route & Return   (entry/exit gates, Taylor Made Sur-Mark)
+    Task 2  Debris Clearance            (A-0 channel gates + debris field)
+    Task 3  Emergency Response Sprint   (A-2 gate, yellow mark buoy, colour indicator)
+    Task 5  Navigate the Marina         (2 floating dock piers x 3 numbered slips)
+  Not included: Task 4 Supply Drop, Task 6 Harbor Alert, patrol boat.
+
+  Element sizes follow the handbook; the LAYOUT (distances, gate widths,
+  task positions) is estimated, because the handbook shows it only in figures.
+
+  World frame ENU: +x east, +y north, +z up. The boat starts at the origin
+  facing east (+x), 5 m before the first entry gate (handbook minimum: 6 ft).
+
+  Course map (not to scale):
+                         Task 2 debris field   (x 16..28, y 23..39)
+                         Task 2 channel        (x ~22,   y 6..18, heading north)
+    start (0,0) -> Task 1 gates (x 5 and 13)   -> Task 3 sprint (x 30..50, y -6)
+                         Task 5 marina         (x 18..21, y -33..-17)
+-->
+<sdf version="1.9">
+  <world name="roboboat_course">
+
+    <physics name="4ms" type="dart">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- Core systems -->
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <!-- Needed once the boat carries sensors (camera/lidar, IMU, GNSS) -->
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-navsat-system" name="gz::sim::systems::NavSat"/>
+    <plugin filename="gz-sim-contact-system" name="gz::sim::systems::Contact"/>
+
+    <scene>
+      <sky></sky>
+      <grid>false</grid>
+      <ambient>1.0 1.0 1.0</ambient>
+      <background>0.8 0.8 0.8</background>
+    </scene>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- GNSS origin: Nathan Benderson Park, Sarasota FL (RoboBoat venue).
+         Coordinates taken from VRX's nbpark.sdf. -->
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>27.367256</latitude_deg>
+      <longitude_deg>-82.451120</longitude_deg>
+      <elevation>0.0</elevation>
+      <heading_deg>0.0</heading_deg>
+    </spherical_coordinates>
+
+    <!-- Water surface (looks only) -->
+    <include>
+      <name>water</name>
+      <pose>0 0 0 0 0 0</pose>
+      <uri>model://coast_waves</uri>
+    </include>
+
+    <!-- Waves: Nathan Benderson Park is a sheltered rowing lake, so small
+         waves by default. 0 = flat water, 0.3 = choppy. -->
+    <plugin filename="libPublisherPlugin.so" name="vrx::PublisherPlugin">
+      <message type="gz.msgs.Param" topic="/vrx/wavefield/parameters" every="2.0">
+        params { key: "direction" value { type: DOUBLE double_value: 0.0 } }
+        params { key: "gain"      value { type: DOUBLE double_value: 0.1 } }
+        params { key: "period"    value { type: DOUBLE double_value: 4.0 } }
+        params { key: "steepness" value { type: DOUBLE double_value: 0.0 } }
+      </message>
+    </plugin>
+
+    <!-- Optional real terrain of the venue. Disabled because the course
+         positions below are not yet matched to where the lake actually is.
+    <include>
+      <pose>0 0 -1 0 0 0</pose>
+      <uri>https://fuel.gazebosim.org/1.0/openrobotics/models/nathan_benderson_park</uri>
+    </include>
+    -->
+
+    <!-- ===================== Tasks =====================
+         Each task is ONE model (a group of buoys); move or rotate a whole
+         task by editing its pose: x y z roll pitch yaw (yaw in radians). -->
+
+    <!-- Task 1: Evacuation Route & Return - enter heading east -->
+    <include>
+      <name>task1_entry_exit</name>
+      <pose>5 0 0 0 0 0</pose>
+      <uri>model://rb26_task1_entry_exit</uri>
+    </include>
+
+    <!-- Task 2: Debris Clearance - channel heading north (yaw 90 deg) -->
+    <include>
+      <name>task2_debris_clearance</name>
+      <pose>22 6 0 0 0 1.5708</pose>
+      <uri>model://rb26_task2_debris_clearance</uri>
+    </include>
+
+    <!-- Task 3: Emergency Response Sprint - gate faces west, run east -->
+    <include>
+      <name>task3_speed_challenge</name>
+      <pose>30 -6 0 0 0 0</pose>
+      <uri>model://rb26_task3_speed_challenge</uri>
+    </include>
+
+    <!-- Task 5: Navigate the Marina - approach heading east -->
+    <include>
+      <name>task5_marina</name>
+      <pose>18 -25 0 0 0 0</pose>
+      <uri>model://rb26_task5_marina</uri>
+    </include>
+
+    <include>
+      <name>asv</name>
+      <pose>0 0 0.084 0 0 0</pose>
+      <uri>model://asv</uri>
+    </include>
+
+  </world>
+</sdf>

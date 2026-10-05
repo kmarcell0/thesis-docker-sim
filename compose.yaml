@@ -1,0 +1,40 @@
+services:
+  sim:
+    build:
+      context: ./docker
+      args:
+        USER_UID: ${USER_UID}
+        USER_GID: ${USER_GID}
+    image: roboboat-sim:jazzy
+    container_name: roboboat-sim
+
+    # Sharing host network for DDS
+    network_mode: host
+    ipc: host
+
+    # GPU magic
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - "${VIDEO_GID}"
+      - "${RENDER_GID}"
+
+    environment:
+      - DISPLAY=${DISPLAY}
+      # Keep ROS discovery only on local machine
+      - ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST
+      # Keep gazebo transport on loopback
+      - GZ_IP=127.0.0.1
+      - GZ_SIM_RESOURCE_PATH=/ws/src/asv_sim/models
+
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./ws:/ws
+      - gz-cache:/home/dev/.gz
+
+    stdin_open: true
+    tty: true
+    command: sleep infinity
+
+volumes:
+  gz-cache:

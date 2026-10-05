@@ -1,0 +1,1 @@
+/ws/src/vrx/vrx_gz/hooks/resource_paths.sh
