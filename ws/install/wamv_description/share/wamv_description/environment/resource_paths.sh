@@ -1,1 +1,0 @@
-/ws/src/vrx/vrx_urdf/wamv_description/hooks/resource_paths.sh

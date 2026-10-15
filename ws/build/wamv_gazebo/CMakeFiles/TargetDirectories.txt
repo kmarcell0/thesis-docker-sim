@@ -1,9 +1,0 @@
-/ws/build/wamv_gazebo/CMakeFiles/uninstall.dir
-/ws/build/wamv_gazebo/CMakeFiles/wamv_gazebo_uninstall.dir
-/ws/build/wamv_gazebo/CMakeFiles/test.dir
-/ws/build/wamv_gazebo/CMakeFiles/edit_cache.dir
-/ws/build/wamv_gazebo/CMakeFiles/rebuild_cache.dir
-/ws/build/wamv_gazebo/CMakeFiles/list_install_components.dir
-/ws/build/wamv_gazebo/CMakeFiles/install.dir
-/ws/build/wamv_gazebo/CMakeFiles/install/local.dir
-/ws/build/wamv_gazebo/CMakeFiles/install/strip.dir

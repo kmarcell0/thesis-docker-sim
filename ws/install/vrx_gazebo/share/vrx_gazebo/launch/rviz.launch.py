@@ -1,1 +1,0 @@
-/ws/src/vrx/vrx_urdf/vrx_gazebo/launch/rviz.launch.py

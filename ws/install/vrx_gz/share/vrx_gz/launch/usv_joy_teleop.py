@@ -1,1 +1,0 @@
-/ws/src/vrx/vrx_gz/launch/usv_joy_teleop.py

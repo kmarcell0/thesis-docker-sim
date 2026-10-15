@@ -1,1 +1,0 @@
-/ws/build/wamv_description/ament_cmake_core/wamv_descriptionConfig.cmake

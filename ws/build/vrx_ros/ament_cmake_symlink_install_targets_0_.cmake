@@ -1,1 +1,0 @@
-ament_cmake_symlink_install_targets("TARGET_FILES" "/ws/build/vrx_ros/optical_frame_publisher" "/ws/build/vrx_ros/pose_tf_broadcaster" "TARGETS" "optical_frame_publisher" "pose_tf_broadcaster" "DESTINATION" "lib/vrx_ros")

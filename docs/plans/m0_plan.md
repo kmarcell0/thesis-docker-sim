@@ -183,3 +183,46 @@ Commit: `git log --grep "^M0.3:"`.
 
 ### Marcell's notes
 Written by Marcell only; Claude never edits this part.
+
+---
+
+## M0.4 Stop tracking build output
+
+**Goal:** git stops tracking `ws/build`, `ws/install`, `ws/log` and stray
+`__pycache__` files; they stay on disk.
+**Done when:** `git ls-files ws/build ws/install ws/log` prints nothing; the
+workspace still builds.
+**Decisions needed:** none.
+
+### Brief (agreed on 2026-10-15, short form)
+- Tracked before: ws/build 746, ws/install 484, ws/log 33 (= 1,263), plus 14
+  `.pyc` in `asv_sim/tests` and `asv_sim/tools/asvgen`.
+- ⚠ `git rm -r --cached` (Marcell's go, 2026-10-15); `.gitignore` already has
+  all four patterns. Files stay in older commits (no history rewrite).
+- Check: `git ls-files` empty for them; `colcon build` and 28 Python tests OK.
+
+### Report (2026-10-15)
+Commit: `git log --grep "^M0.4:"`.
+
+1. What changed: 1,277 files removed from the index (1,263 build output + 14
+   `.pyc`); nothing deleted on disk. Master plan mark; this log.
+2. How it was checked
+   - `git diff --cached --diff-filter=D --name-only | wc -l` → `1277`
+   - `git ls-files ws/build ws/install ws/log | wc -l` → `0`;
+     `git ls-files | grep -c pyc` → `0`
+   - `ls -d ws/install/asv_sim ws/src/asv_sim/tools/asvgen/__pycache__` → both exist
+   - `colcon build --symlink-install --packages-up-to asv_sim` → `1 package finished`
+   - `python3 -m unittest discover -s tests` → `Ran 28 tests ... OK`
+   - `git status --short` after the build and tests: no untracked files (the
+     ignore rules now apply).
+3. What could not be checked: nothing.
+4. How to read the code: no code.
+5. Numbers for the thesis: none.
+6. Check your understanding
+   - Why did the existing `.gitignore` lines not stop these files from showing
+     up in `git status`?
+   - After this commit, can someone who checks out commit 6b8be2b still see
+     the build files?
+
+### Marcell's notes
+Written by Marcell only; Claude never edits this part.
