@@ -139,3 +139,47 @@ Commit: `git log --grep "^M0.2:"`.
 
 ### Marcell's notes
 Written by Marcell only; Claude never edits this part.
+
+---
+
+## M0.3 Installed packages
+
+**Goal:** record which libraries the later steps need are installed in the
+container.
+**Done when:** result recorded in `docs/design.md` §12.
+**Decisions needed:** none.
+
+### Brief (agreed on 2026-10-15, short form)
+- Read-only check; nothing gets installed. Missing packages are reported; the
+  step that needs one asks for it.
+- Files: `docs/design.md` §12 (table; stale "git-ignored from M0.1 on"), this
+  log, master plan mark. (The progress-bar rule in `CLAUDE.md` was committed
+  separately, a4af79c.)
+- Check: `dpkg-query` for cv-bridge, OpenCV, rosbag2-cpp, PCL, yaml-cpp-vendor,
+  numpy, scipy, matplotlib, Eigen, gtest; `python3 -c "import numpy, scipy,
+  matplotlib"`.
+
+### Report (2026-10-15)
+Commit: `git log --grep "^M0.3:"`.
+
+1. What changed: `docs/design.md` §12: table of packages, what needs them, and
+   their versions; master plan mark; this log.
+2. How it was checked (in the container, `dpkg-query -W -f='${Status}|${Version}'`)
+   - `install ok installed`: ros-jazzy-cv-bridge 4.1.0, libopencv-dev 4.6.0,
+     ros-jazzy-rosbag2-cpp 0.26.11, ros-jazzy-yaml-cpp-vendor 9.0.1,
+     python3-numpy 1.26.4, python3-scipy 1.11.4, python3-matplotlib 3.6.3,
+     libeigen3-dev 3.4.0, libgtest-dev 1.14.0, ros-jazzy-ament-cmake-gtest
+     2.5.6 (extra, needed by M1.2).
+   - `libpcl-dev`: `no packages found matching libpcl-dev`.
+   - `python3 -c ...` → `numpy 1.26.4 scipy 1.11.4 matplotlib 3.6.3`.
+   - Docs only: Python tests unchanged (28), not rerun.
+3. What could not be checked: nothing.
+4. How to read the code: no code.
+5. Numbers for the thesis (Toolchain): the versions above [MEASURED].
+6. Check your understanding
+   - Which planned step would need PCL, and is it core or optional?
+   - Why is a missing package added through the Dockerfile and not by
+     installing it inside the running container?
+
+### Marcell's notes
+Written by Marcell only; Claude never edits this part.

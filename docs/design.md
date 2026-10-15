@@ -553,13 +553,24 @@ Configuration map:
 | fake detector settings | `asv_sim/config/detector/<name>.yaml` |
 | filter settings | `asv_slam/config/<name>.yaml` |
 | sweeps | `asv_eval/config/sweeps/<name>.yaml` |
-| recordings, run results, figures | `ws/data/{bags,runs,figures}/` (git-ignored from M0.1 on) |
+| recordings, run results, figures | `ws/data/{bags,runs,figures}/` (git-ignored) |
 
-Installed in the container (confirm with M0.3): Eigen and gtest (Dockerfile);
-rosbag2_cpp (part of `ros:jazzy-ros-base`); yaml-cpp (through
-`yaml_cpp_vendor`, very likely); cv_bridge and OpenCV very likely (dependencies of
-`rqt_image_view`); PCL probably not. Python libraries for evaluation (numpy,
-scipy, matplotlib) are not checked yet. Ask before adding anything.
+Installed in the container, checked in M0.3 (2026-10-15) with `dpkg-query` and
+`python3 -c "import ..."` [MEASURED]. Ask before adding anything.
+
+| Package | Needed by | Installed version |
+|---|---|---|
+| `libeigen3-dev` | `asv_core` (M2.1 on) | 3.4.0 |
+| `libgtest-dev` | C++ tests | 1.14.0 |
+| `ros-jazzy-ament-cmake-gtest` | gtest in colcon (M1.2) | 2.5.6 |
+| `ros-jazzy-rosbag2-cpp` | slam_replay (M3.5) | 0.26.11 |
+| `ros-jazzy-yaml-cpp-vendor` | YAML in C++ | 9.0.1 |
+| `ros-jazzy-cv-bridge` | camera colour (M5.2, optional) | 4.1.0 |
+| `libopencv-dev` | camera colour (M5.2, optional) | 4.6.0 |
+| `libpcl-dev` | lidar clustering (M5.1, optional, if used) | **not installed** |
+| `python3-numpy` | evaluation, tools | 1.26.4 |
+| `python3-scipy` | evaluation (χ² bounds) | 1.11.4 |
+| `python3-matplotlib` | figures | 3.6.3 |
 
 ## 13. Facts to rely on, and limitations
 
