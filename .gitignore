@@ -1,5 +1,4 @@
 .env
-ws/src/vrx
 ws/build/
 ws/install/
 ws/log/

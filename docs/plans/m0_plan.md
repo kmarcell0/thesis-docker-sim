@@ -226,3 +226,69 @@ Commit: `git log --grep "^M0.4:"`.
 
 ### Marcell's notes
 Written by Marcell only; Claude never edits this part.
+
+---
+
+## M0.5 Submodule and README (optional, asked for by Marcell)
+
+**Goal:** a fresh clone from GitHub rebuilds the project; a `README.md` says
+what the repository is for and how to use it.
+**Done when:** a fresh clone builds after `git submodule update --init`.
+**Decisions needed:** none.
+
+### Brief (agreed on 2026-10-15, short form)
+- Found: `ws/src/vrx` is a submodule link (gitlink 7609d1b) without
+  `.gitmodules`; VRX remote `https://github.com/osrf/vrx`; thesis source
+  `https://github.com/kmarcell0/thesis-latex` (public, checked with anonymous
+  `git ls-remote`).
+- Files: ⚠ `.gitmodules` (new), ⚠ `.gitignore` (drop `ws/src/vrx`),
+  `README.md` (new; bullets and tables: aim, boat, data flow, status,
+  quick start, layout, docs, related repos), this log, master plan mark,
+  `CLAUDE.md` layout.
+- Check: local `git clone` + `git submodule update --init` → VRX at 7609d1b;
+  build the clone in a throwaway container from the same image; 28 Python
+  tests in the clone; every README link resolves.
+- Can't check: rendering on GitHub.
+
+### Report (2026-10-15)
+Commit: `git log --grep "^M0.5:"`.
+
+1. What changed
+   - `.gitmodules` (new): `ws/src/vrx` → `https://github.com/osrf/vrx.git`
+     (pinned by the existing gitlink 7609d1b).
+   - `.gitignore`: `ws/src/vrx` line removed.
+   - `README.md` (new): aim, boat table + `asv_layout.png`, data-flow diagram,
+     status bar and milestone table, quick start, layout, docs table, links to
+     thesis-latex and VRX.
+   - `CLAUDE.md` layout: README, .gitmodules, VRX as submodule. Master plan
+     mark; this log.
+2. How it was checked
+   - Fresh `git clone` of this repo (local path) into the scratchpad, plus the
+     new `.gitmodules`/`.gitignore`; `git submodule update --init` →
+     `Submodule path 'ws/src/vrx': checked out '7609d1bd…'` (fetched from GitHub).
+   - Throwaway container (`docker run --rm -v <clone>/ws:/ws roboboat-sim:jazzy`),
+     whole workspace: `colcon build --symlink-install` → `Summary: 6 packages
+     finished [27.8s]` (asv_sim, vrx_gazebo, wamv_description, wamv_gazebo,
+     vrx_ros, vrx_gz).
+   - In the clone: `python3 -m unittest discover -s tests` → `Ran 28 tests ... OK`.
+   - Every local README link and the image path exist (checked with a script).
+   - `git ls-remote` without credentials works for thesis-latex and
+     thesis-docker-sim, so both are public.
+3. What could not be checked
+   - README rendering on GitHub (Marcell: look after the push).
+   - Launching the sim from the fresh clone (not in the brief; only the build).
+   - The `xhost +local:` hint in the README is a common fix, not tested here.
+4. How to read the code: no code.
+5. Numbers for the thesis (Toolchain): VRX commit 7609d1b (v3.1.2-1)
+   [REPO]; full workspace build 27.8 s from a fresh clone [MEASURED, this PC].
+6. Check your understanding
+   - What does `.gitmodules` add that the gitlink in the tree did not have?
+   - Why does `colcon build --packages-up-to asv_sim` not build VRX, although
+     the course world needs VRX plugins?
+
+Found on the way (not changed; for a later step):
+- `asv_sim/package.xml` has no `<exec_depend>` on VRX (`vrx_gz`), although the
+  world loads VRX plugins. Adding it is an "ask first" change.
+- In Marcell's own checkout, `git submodule status` shows `-7609d1b`: VRX was
+  cloned by hand, so the submodule is not registered in `.git/config`.
+  `git submodule init` would register it (harmless; not done).
