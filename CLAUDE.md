@@ -95,6 +95,19 @@ out items that would only say "none". It should fit on one screen.
 M0.5, M2.9, small fixes Marcell asks for): goal, open decisions, files (with
 ⚠ marks), how we check it, in about five lines. Still wait for his go.
 
+**Progress bar** at the top of every brief (full and short form), built from
+the marks in `docs/master_plan.md`: one square per step, grouped by milestone in
+table order; 🟩 done `[x]`, 🟨 the step this brief is for, ⬜ not done yet.
+Count only steps that will be done: leave out `[-]` steps and optional ones
+(M0.5, M5, M7) unless Marcell asked for them; each sub-step (M3.3a, ...) is
+one square. Below it: `<done> of <total> steps done: <xx>% completed!` (done ÷
+total, rounded to a whole percent; the current step is not yet counted as done).
+Example:
+```
+M0 🟩🟩🟨⬜ │ M1 🟩🟩⬜⬜⬜⬜⬜⬜⬜ │ M2 ⬜⬜⬜⬜⬜⬜⬜⬜ │ M3 ⬜⬜⬜⬜⬜⬜⬜⬜⬜ │ M4 ⬜ │ M6 ⬜⬜⬜
+4 of 34 steps done: 12% completed!
+```
+
 If a step is too big to explain on one screen, propose splitting it into
 sub-steps (M3.3a, M3.3b, ...).
 
