@@ -43,10 +43,8 @@ box.
 | `ws/src/asv_sim/docs/milestone1_plan.md` | Milestone 1 (its Step N = M1.N); also holds the M1 briefs and reports |
 | `ws/src/asv_sim/docs/HOW_IT_WORKS.md` | The boat model generator; keep it accurate when changing `tools/asvgen/` |
 
-`CONTEXT.md` in the repository root (if it is still there) is an old chat
-summary from 2026-10-07. Several of its statements are wrong (for example that
-`mix()` and 8 C++ tests exist). It is not a source of truth; the files in the
-table above are. Step M0.1 decides whether it is removed.
+The old chat summary `CONTEXT.md` (2026-10-07) was removed in M0.1; several of
+its statements were wrong. The files in the table above are the source of truth.
 
 **The thesis draft and Marcell's literature notes are NOT in this repository.**
 Before writing an equation that belongs to the thesis, use the form in
@@ -285,7 +283,6 @@ Update this section in the same commit as the step that changes it.
 - **GNSS noise bug (until step M2.2):** `asv.yaml` gives GNSS noise in metres, but
   Gazebo applies it in degrees, so the simulated GNSS noise is about 890 m.
   Don't use GNSS data recorded before M2.2.
-- `ws/data/` is not git-ignored until M0.1 is done: never stage anything in it.
 - Gazebo's IMU orientation is perfect (no noise). Never feed it to a filter. The
   corruptor's IMU message imitates the real boat's IMU topic (D11) and never
   carries the true yaw.
@@ -302,7 +299,7 @@ CLAUDE.md                 this file
 docs/                     master plan, design reference, glossary, milestone plans
 docker/Dockerfile, compose.yaml, setup-env.sh   container definition
 ws/                       colcon workspace, mounted in the container at /ws
-  data/                   bags, run results, figures (never committed; git-ignored from M0.1)
+  data/                   bags, run results, figures (never committed; git-ignored)
   src/vrx/                VRX (third party, do not modify)
   src/asv_sim/            simulator package (ament_cmake)
     config/asv.yaml       boat description: the single source of truth

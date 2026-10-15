@@ -5,3 +5,4 @@ ws/install/
 ws/log/
 __pycache__/
 *.pyc
+ws/data/
