@@ -19,6 +19,7 @@ import time
 
 import rclpy
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Float64
 from nav_msgs.msg import Odometry
@@ -50,7 +51,12 @@ class ActuatorCheck(Node):
     RATE = 10  # Hz — command publish rate
 
     def __init__(self, xu, xuu):
-        super().__init__('actuator_check')
+        # Phases are timed on Gazebo's clock (docs/design.md §3), so they last
+        # the same simulated time whatever the real-time factor is.
+        super().__init__(
+            'actuator_check',
+            parameter_overrides=[Parameter('use_sim_time', Parameter.Type.BOOL, True)],
+        )
         self.xu = xu
         self.xuu = xuu
         self.latest_odom = None
@@ -86,10 +92,18 @@ class ActuatorCheck(Node):
     def zero_all(self):
         self.publish_commands(0.0, 0.0, 0.0, 0.0)
 
+    def sim_now(self):
+        """Current simulation time in seconds (0 until the first /clock)."""
+        return self.get_clock().now().nanoseconds * 1e-9
+
     def wait_for_odom(self, timeout=10.0):
-        """Block until at least one odom message arrives."""
+        """Block until /clock and at least one odom message have arrived.
+
+        The timeout is wall time on purpose: if Gazebo is not running, sim
+        time never advances and a sim-time timeout would wait forever.
+        """
         t0 = time.monotonic()
-        while self.latest_odom is None:
+        while self.latest_odom is None or self.sim_now() == 0.0:
             rclpy.spin_once(self, timeout_sec=0.1)
             if time.monotonic() - t0 > timeout:
                 self.get_logger().error('No odometry received — is the sim running?')
@@ -97,11 +111,15 @@ class ActuatorCheck(Node):
         return True
 
     def run_phase(self, duration, left_thrust, right_thrust, left_pos, right_pos):
-        """Publish commands at RATE Hz for *duration* seconds, return list of odom samples."""
+        """Publish commands for *duration* simulated seconds, return list of odom samples.
+
+        Commands go out about every 1/RATE s (the spin_once timeout is wall
+        time, so the publish rate is not exact; the phase length is).
+        """
         dt = 1.0 / self.RATE
         samples = []
-        t0 = time.monotonic()
-        while time.monotonic() - t0 < duration:
+        t0 = self.sim_now()
+        while self.sim_now() - t0 < duration:
             self.publish_commands(left_thrust, right_thrust, left_pos, right_pos)
             rclpy.spin_once(self, timeout_sec=dt)
             if self.latest_odom is not None:

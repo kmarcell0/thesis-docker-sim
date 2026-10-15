@@ -582,6 +582,20 @@ Checked facts (gz-sensors / gz-sim source code and the repository):
 - The pod steering angle follows commands at no more than 2 rad/s, and the actual
   angle is not published to ROS.
 
+Measured in this repository (M0.2, 2026-10-15, `tools/sim_time_check.py`):
+
+- `sim.launch.py` sets `use_sim_time` for all its nodes (bridge and 9 static TF
+  publishers, checked with `ros2 param get`).
+- Headless real-time factor (world asks for 1.0): 0.848 [MEASURED, 30 s
+  simulated in 35.4 s wall; this PC, no other load]. Not measured with the GUI.
+- A 20 Hz ROS-clock timer fires 20.03 per simulated second at RTF 0.848 and
+  20.00 at RTF 0.493; a wall timer fires 23.60 and 40.57 (= 20 / RTF).
+- The RTF can be changed at runtime, without touching the world file:
+  `gz service -s /world/roboboat_course/set_physics --reqtype gz.msgs.Physics
+  --reptype gz.msgs.Boolean --req 'real_time_factor: 0.5, max_step_size: 0.004'`.
+- `tools/actuator_check.py` now times its phases in simulation time; rerun gives
+  the Step 1 table unchanged (1.00 / 1.52 / 2.27 m/s, +0.150 and +0.176 rad/s).
+
 Limitations to state in the thesis (Discussion and Limitations):
 
 - No water or spray returns in the lidar; no multipath or reflections in GNSS.

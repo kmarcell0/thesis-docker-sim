@@ -292,6 +292,9 @@ Update this section in the same commit as the step that changes it.
   but using them inside the filter would be an inverse crime.
 - Steering sign and differential thrust both confirmed (Step 1): negative pod
   angle → positive yaw rate (left turn), left−/right+ thrust → left turn.
+- Simulation time (M0.2): `sim.launch.py` sets `use_sim_time` for all its nodes;
+  `tools/sim_time_check.py` checks ROS-clock timers. Headless Gazebo runs at a
+  real-time factor of about 0.85, not 1.0 (`docs/design.md` §13).
 
 ## Layout (project root = ~/thesis/docker-sym on the host)
 ```

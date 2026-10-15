@@ -16,7 +16,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+from launch_ros.actions import Node, SetParameter
 
 
 def _launch_setup(context, *args, **kwargs):
@@ -27,7 +27,10 @@ def _launch_setup(context, *args, **kwargs):
     gui_str = LaunchConfiguration('gui').perform(context)
     headless = gui_str.lower() in ('false', '0', 'no')
 
-    actions = []
+    # Every ROS node below runs on Gazebo's clock (/clock), not the computer's
+    # clock (docs/design.md §3). SetParameter applies to all nodes launched
+    # after it in this description. Gazebo itself is not a ROS node.
+    actions = [SetParameter(name='use_sim_time', value=True)]
 
     # ── 1. Gazebo Harmonic ──────────────────────────────────────────────
     world_file = os.path.join(pkg_share, 'worlds', 'roboboat_course.sdf')
