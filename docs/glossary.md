@@ -56,6 +56,12 @@ proposes, Marcell decides, and then this table is updated.
 | d_end | distance left to the last waypoint, along the route: (ℓ_i − s) + Σ_{j>i} ℓ_j | m | proposed |
 | ψ_d, ψ̃ | desired heading and heading error ψ̃ = wrap(ψ_d − ψ) | rad | proposed |
 | K_ψ, K_ω | heading-control gains (on heading error and on yaw rate); steer is in rad | none, s | proposed (replaces K_r) |
+| ψ_spin, K_spin | spin-assist threshold and gain: spin = sign(ψ̃)·clamp(K_spin(\|ψ̃\| − ψ_spin), 0, spin_max) | rad; 1/rad | proposed |
+| ψ_turn | turn threshold: while \|ψ̃\| > ψ_turn the throttle may not be negative (decision 10.2 c) | rad | proposed |
+| u_cmd, u_ref | commanded forward speed and the segment's speed: u_cmd = min(u_ref·max(0, cos ψ̃), K_stop d_end) | m/s | proposed |
+| K_stop | gain that slows the boat near the end, u_cmd ≤ K_stop d_end | 1/s | proposed |
+| T_ff | feedforward thrust that holds a speed against the drag model, X_u u + X_uu u\|u\| | N | proposed |
+| K_P, K_I, I | speed PI gains and the integral of the speed error | 1/(m/s), 1/m; m | proposed |
 | δ | pod (steering) angle; positive turns the boat right | rad | proposed (the buoy offset in `design.md` §6 is d) |
 | T_L, T_R | left and right thrust | N | proposed |
 | X_u, X_uu; n_R, n_RR | linear and quadratic drag in surge and in yaw (`xU`, `xUU`, `nR`, `nRR` in `asv.yaml`) | | proposed |

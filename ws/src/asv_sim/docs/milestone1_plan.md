@@ -167,7 +167,12 @@ errors (sharp turns, slow speed) **spin assist** adds differential thrust:
 
 $$\text{spin} = \begin{cases}\operatorname{clamp}(K_\text{spin}\,\tilde\psi,\ \pm\text{spin\_max}) & |\tilde\psi| > \psi_\text{spin}\\ 0 & \text{otherwise}\end{cases}$$
 
-(With the starting values this is an on/off switch; section 10.3.)
+**Implemented form (decision 10.3 b):** a ramp that starts at zero at the
+threshold, so spin has no jump:
+
+$$\text{spin} = \operatorname{sign}(\tilde\psi)\,\operatorname{clamp}\big(K_\text{spin}(|\tilde\psi| - \psi_\text{spin}),\ 0,\ \text{spin\_max}\big)$$
+
+With K_spin = 1.0 it reaches spin_max = 0.4 at |ψ̃| = 1.2 rad.
 
 Signs follow `mix()`: steer > 0 and spin > 0 both turn the boat
 counter-clockwise (left), **as long as the thrust is forward** (section 10.2).
@@ -189,6 +194,13 @@ $$T_\text{ff}(u) = X_u u + X_{uu} u|u|, \qquad
 \text{throttle} = \frac{T_\text{ff}(u_\text{cmd})}{2\,T_\text{max}} + K_P(u_\text{cmd}-u) + K_I\!\int(u_\text{cmd}-u)\,dt$$
 
 clamped to $[-0.3, 1]$, with anti-windup (stop integrating while saturated).
+
+**Implemented form (decision 10.2 c):** while $|\tilde\psi| > \psi_\text{turn}$
+(0.3 rad) the lower limit is 0 instead of −0.3, so the pods always push forward
+in a turn and the steering sign holds. $u_\text{cmd}$ is also kept ≥ 0 (just
+past the end $d_\text{end} < 0$). Anti-windup by conditional integration: the
+error is integrated unless the output is beyond a limit and the error pushes
+further that way. The time step comes from the odometry stamps.
 Example: 1.0 m/s needs $4 + 6 = 10$ N in total, i.e. 5 N per thruster
 (throttle 0.1 at 50 N max).
 
@@ -251,13 +263,16 @@ waypoint_follower:
     heading_kp: 1.2             # rad steer per rad error (K_psi)
     heading_kd: 0.6             # rad steer per rad/s yaw rate (K_omega)
     max_steer: 0.8              # rad
-    spin_threshold: 0.8         # rad (~45 deg)
-    spin_kp: 0.5
+    spin_threshold: 0.8         # rad (~45 deg), psi_spin
+    spin_kp: 1.0                # 1/rad, K_spin (ramp, 10.3 b): spin_max at 1.2 rad
     spin_max: 0.4
     # speed control
     speed_kp: 0.3               # throttle per m/s error
     speed_ki: 0.05
     stop_gain: 0.5              # 1/s, K_stop
+    turn_threshold: 0.3         # rad, psi_turn: throttle >= 0 above it (10.2 c)
+    min_throttle: -0.3          # lower throttle limit when not turning
+    max_throttle: 1.0
     # gates: name + red buoy (x, y) + green buoy (x, y)
     gate_names: [gate1, gate2]
     gate_coords: [5.0, 1.524, 5.0, -1.524, 13.0, 1.524, 13.0, -1.524]
@@ -464,6 +479,81 @@ logic test (10.4, 10.5). One commit each.
   3. Why is wrap(−π) mapped to +π, and where would two different values for
      the same direction cause trouble?
 
+#### M1.2c Brief (agreed 2026-10-18)
+- **Goal:** ROS-free `HeadingControl` (ψ̃, ω → steer, spin) and
+  `SpeedControl` (u_ref, ψ̃, d_end, u, dt → throttle) with gtests.
+- **Decisions:** 10.2 c (throttle ≥ 0 while |ψ̃| > ψ_turn, ψ_turn = 0.3 rad
+  [EST]); 10.3 b (spin ramps from ψ_spin, K_spin = 1.0 [EST], spin_max 0.4
+  reached at 1.2 rad).
+- **Why:** the control half of the follower (M1.3). Experimental Scenarios;
+  App. C.
+- **New ideas:** PD on the measured yaw rate; feedforward + PI; anti-windup
+  (glossary).
+- **Files:** `include/asv_sim/control.hpp`, `src/control.cpp`,
+  `test/test_control.cpp`, `CMakeLists.txt`; this plan (§5.3, §5.4, §6, §10),
+  `docs/master_plan.md`, `docs/glossary.md`, `CLAUDE.md`. No new dependency.
+- **How it works:** ψ̃ = wrap(ψ_d − ψ); steer = clamp(K_ψ ψ̃ − K_ω ω,
+  ±max_steer); spin = sign(ψ̃)·clamp(K_spin(|ψ̃| − ψ_spin), 0, spin_max).
+  u_cmd = min(u_ref·max(0, cos ψ̃), K_stop d_end); T_ff = X_u u_cmd +
+  X_uu u_cmd|u_cmd|; throttle = clamp(T_ff/(2 T_max) + K_P(u_cmd − u) + K_I I,
+  lower, 1) with lower = 0 if |ψ̃| > ψ_turn else −0.3; I integrates
+  (u_cmd − u)·dt only when that does not push further into a limit; dt ≤ 0 →
+  no integration; dt from stamps (caller). Bad parameters throw.
+- **Check:** gtest `test_control` (steer sign, clamp, ω term −0.3 at ω = 0.5;
+  wrapping across ±π; spin 0 below, continuous at, saturated above the
+  threshold, odd; u_cmd cos factor and d_end cap; throttle 0.100 at 1.0 m/s;
+  throttle 0 at ψ̃ = 1.0, u = 0.6; negative allowed when straight; anti-windup;
+  I = 0.2 after 1 s of 0.2 m/s error; invalid parameters throw); other gtests
+  unchanged; Python 28 OK.
+- **Can't check:** nothing GUI; the gains meet a boat model in M1.2e and Gazebo
+  in M1.3/M1.5. Weak spot to watch: for ψ_turn < |ψ̃| < ψ_spin the throttle can
+  be 0 and spin not yet on, so nothing turns the boat.
+
+#### M1.2c Report (2026-10-18)
+- **What changed**
+  - `include/asv_sim/control.hpp`, `src/control.cpp`: `HeadingControl`
+    (ψ̃, steer, spin ramp) and `SpeedControl` (u_cmd, feedforward, PI with
+    anti-windup, throttle ≥ 0 while turning).
+  - `test/test_control.cpp` (18 gtests); `CMakeLists.txt`: the source in
+    `asv_sim_guidance`, gtest `test_control`.
+  - This plan: §5.3 and §5.4 implemented form, §6 (`spin_kp` 1.0, new
+    `turn_threshold`, `min_throttle`, `max_throttle`), 10.3 decided;
+    `docs/master_plan.md`, `docs/glossary.md` (ψ_spin, K_spin, ψ_turn, u_cmd,
+    u_ref, K_stop, T_ff, K_P, K_I, I), `CLAUDE.md` (Known state, baseline).
+- **How it was checked**
+  - Clean rebuild (`--cmake-target clean`, then `colcon build --symlink-install
+    --packages-up-to asv_sim --event-handlers console_direct+`): 0 lines
+    matching "warning".
+  - `colcon test --packages-select asv_sim && colcon test-result --verbose`:
+    `test_mix` 9, `test_angles` 6, `test_guidance` 14, `test_control` 18,
+    0 failures; summary `51 tests, 0 errors, 0 failures, 0 skipped` (47 gtests
+    + 4 CTest wrappers).
+  - `python3 -m unittest discover -s tests`: `Ran 28 tests ... OK`.
+- **Not checked:** no Gazebo and no boat model in this step; whether the gains
+  turn the boat through the teardrop is seen in M1.2e and M1.3/M1.5. The weak
+  spot from the brief (throttle 0 and spin still off for
+  ψ_turn < |ψ̃| < ψ_spin) is still open.
+- **Small additions beyond the brief:** u_cmd is kept ≥ 0 (d_end < 0 just past
+  the end would otherwise ask for a reverse speed); the throttle limits −0.3
+  and 1 are parameters (`min_throttle`, `max_throttle`), not constants in code.
+- **How to read the code:** `control.hpp` (the two contracts and their
+  equations) → `control.cpp`: `HeadingControl::compute()` = §5.3 (steer) and
+  10.3 b (spin); `SpeedControl::commanded_speed()` = u_cmd of §5.4,
+  `feedforward_throttle()` = T_ff/(2 T_max), `update()` = PI + 10.2 c lower
+  limit + anti-windup. Tests follow the same order.
+- **Numbers:** throttle 0.100 at 1.0 m/s (10 N total) [MEASURED gtest, drag
+  X_u = 4, X_uu = 6 REPO `asv.yaml`]; at ψ̃ = 1.0 rad, 0.6 m/s the raw throttle
+  −0.0635 is held at 0 [MEASURED gtest]; spin 0.2 at 1.0 rad, 0.4 from 1.2 rad
+  with K_spin = 1.0, ψ_spin = 0.8 rad, ψ_turn = 0.3 rad [EST starting values,
+  plan §6].
+- **Check your understanding**
+  1. Why does the D term use the measured yaw rate ω and not the change of ψ̃?
+     What happens at a waypoint switch otherwise?
+  2. With ψ̃ = 1.0 rad the throttle is 0. What, if anything, still turns the
+     boat, and how does that change at ψ̃ = 0.9 rad?
+  3. In the anti-windup test, what would the throttle do after the error
+     reverses if the integral had grown for the full 100 s?
+
 ### Step 3 — The node (`src/waypoint_follower.cpp`)  (M1.3)
 Parameters (section 6), odometry subscription, 20 Hz ROS-clock timer, the
 state machine (5.7), publishing commands + the four autonomy topics (`path`
@@ -574,6 +664,9 @@ decides.
    side) and can chatter around |ψ̃| = 0.8 rad. Proposed: spin =
    sign(ψ̃)·clamp(K_spin(|ψ̃| − ψ_spin), 0, spin_max), with a new starting
    value for K_spin, and a unit test that spin is continuous at the threshold.
+   **decided 2026-10-18:** b, ramp from the threshold with K_spin = 1.0 [EST]
+   (no reason given); with 10.2 c the turn threshold is ψ_turn = 0.3 rad
+   [EST] (M1.2c).
 4. **The teardrop needs spin.** The four loop corners (W2–W5) turn the heading
    by 233°. Spread over the path from W2 to W6 (12.95 m) that is a mean turning
    radius of about 3.2 m; over W2 to W5 (9.6 m) about 2.4 m. So the boat needs

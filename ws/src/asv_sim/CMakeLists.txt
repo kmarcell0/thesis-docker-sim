@@ -14,6 +14,7 @@ find_package(ament_cmake REQUIRED)
 # Milestone 1 guidance and control logic: plain C++, no ROS (unit tested).
 add_library(asv_sim_guidance
   src/angles.cpp
+  src/control.cpp
   src/guidance.cpp
   src/mix.cpp
 )
@@ -45,6 +46,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_angles asv_sim_guidance)
   ament_add_gtest(test_guidance test/test_guidance.cpp)
   target_link_libraries(test_guidance asv_sim_guidance)
+  ament_add_gtest(test_control test/test_control.cpp)
+  target_link_libraries(test_control asv_sim_guidance)
 endif()
 
 ament_package()
