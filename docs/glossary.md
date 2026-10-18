@@ -51,6 +51,9 @@ proposes, Marcell decides, and then this table is updated.
 | γ_i | direction of segment i, counter-clockwise from east | rad | proposed (replaces α_k: α is the GNSS azimuth) |
 | s, e | along-track progress and cross-track error (e > 0: boat left of the path) | m | proposed (the NEES error vector in `design.md` §10 is a different e) |
 | Δ | lookahead distance of the line-of-sight guidance | m | proposed |
+| R_switch | switch distance: go to the next segment when s ≥ ℓ_i − R_switch | m | proposed (subscripted, so not the process noise R) |
+| p_LOS | line-of-sight target point: Δ ahead of the boat's projection, measured along the route | m | proposed |
+| d_end | distance left to the last waypoint, along the route: (ℓ_i − s) + Σ_{j>i} ℓ_j | m | proposed |
 | ψ_d, ψ̃ | desired heading and heading error ψ̃ = wrap(ψ_d − ψ) | rad | proposed |
 | K_ψ, K_ω | heading-control gains (on heading error and on yaw rate); steer is in rad | none, s | proposed (replaces K_r) |
 | δ | pod (steering) angle; positive turns the boat right | rad | proposed (the buoy offset in `design.md` §6 is d) |
@@ -252,7 +255,9 @@ use (thesis eq. 3.3).
 
 **Line-of-sight (LOS) guidance.** Steering towards a point a fixed distance
 (the lookahead Δ) ahead on the path, instead of towards the next waypoint. Far
-from the path the boat heads back to it; on the path it follows it.
+from the path the boat heads back to it; on the path it follows it. Here
+the lookahead is measured along the route, so near a corner the target point
+already lies on the next segment (decision 10.6 a in `milestone1_plan.md`).
 
 **Matched / mismatched.** *Matched*: the filter's noise settings equal the noise
 the corruptor actually adds (and the corruptor adds nothing the filter does not

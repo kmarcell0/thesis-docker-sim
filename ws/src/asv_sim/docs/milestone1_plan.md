@@ -128,6 +128,9 @@ left of the path). **Switching:** go to the next segment when
 $s \ge \ell_i - R_\text{switch}$ (the boat has reached or passed the waypoint
 *along the path*). This "passed" test, unlike a pure distance circle, can never
 make the boat circle a waypoint it missed by a little.
+At most one switch per control step. On the last segment the same test ends
+the route (FINISHED, decision 10.7 a). The distance left to W_{n_w} is measured
+along the route: $d_\text{end} = (\ell_i - s) + \sum_{j>i} \ell_j$.
 
 ### 5.2 Line-of-sight guidance (`LosGuidance`)
 The standard path-following law for marine vehicles (Fossen, *Handbook of
@@ -139,9 +142,18 @@ $$\psi_d = \gamma_i + \operatorname{atan2}(-e, \Delta)$$
 Far from the path the boat heads almost straight back to it; on the path it
 heads along it. $\Delta$ is the main tuning knob: small → tight tracking but
 oscillation; large → smooth but corners are cut. Start with $\Delta = 3$ m
-(about two boat lengths). The target point $W_i + (s + \Delta)\hat t$ is
-published for visualisation (but see section 10.6: in the loop it can leave
-the route).
+(about two boat lengths).
+
+**Implemented form (decision 10.6 a):** the target point $\mathbf p_\text{LOS}$
+is found by walking $\Delta$ along the route from the boat's projection
+$W_i + s\,\hat t$, carrying what is left past $W_{i+1}$ onto the next
+segments (never past $W_{n_w}$), and
+
+$$\psi_d = \operatorname{atan2}\big(\mathbf p_{\text{LOS},y} - y,\ \mathbf p_{\text{LOS},x} - x\big).$$
+
+While $\mathbf p_\text{LOS}$ is on segment $i$ this is exactly the formula
+above; near a corner the target stays on the route. $\mathbf p_\text{LOS}$ is
+published as `/asv/autonomy/target`.
 
 ### 5.3 Heading control (`HeadingControl`)
 Heading error $\tilde\psi = \operatorname{wrap}(\psi_d - \psi)$, positive =
@@ -380,6 +392,78 @@ logic test (10.4, 10.5). One commit each.
   2. Throttle −1.0, spin 0.2: which side is shifted, and in which direction?
   3. Why does `mix()` never flip the pod angle when the thrust is negative?
 
+#### M1.2b Brief (agreed 2026-10-18)
+- **Goal:** angle wrapping, yaw from quaternion, `Route` (s, e, switching,
+  remaining distance, finished) and `LosGuidance` (target point, ψ_d), ROS-free.
+- **Decisions:** 10.6 a (lookahead carried onto the next segments);
+  10.7 a (d_end along the route; FINISHED by the switch rule on the last
+  segment).
+- **Why:** the guidance half of the follower (M1.3); `SpeedControl` (M1.2c)
+  needs d_end. Experimental Scenarios; App. C.
+- **New ideas:** along-/cross-track (s, e); line-of-sight guidance; angle
+  wrapping (glossary).
+- **Files:** `include/asv_sim/angles.hpp`, `src/angles.cpp`,
+  `include/asv_sim/guidance.hpp`, `src/guidance.cpp`, `test/test_angles.cpp`,
+  `test/test_guidance.cpp`, `CMakeLists.txt`; this plan, `docs/master_plan.md`,
+  `docs/glossary.md`, `CLAUDE.md`. No new dependency.
+- **How it works:** wrap(a) = remainder(a, 2π), −π → +π, range (−π, π].
+  ψ = atan2(2(q_w q_z + q_x q_y), 1 − 2(q_y² + q_z²)). `Route::update(p)`:
+  s = (p − W_i)·t̂_i, e = (p − W_i)·n̂_i; s ≥ ℓ_i − R_switch → next segment (at
+  most one switch per update); on the last segment the same test sets
+  finished. d_end = (ℓ_i − s) + Σ_{j>i} ℓ_j. `LosGuidance`: walk Δ along the
+  route from the projection W_i + s t̂_i (stop at W_{n_w}) → p_LOS;
+  ψ_d = wrap(atan2(p_LOS − p)); equals γ_i + atan2(−e, Δ) on a straight
+  segment. Bad input throws `std::invalid_argument`.
+- **Check:** gtests `test_angles`, `test_guidance` (numbers on the Task 1
+  route: e = ±0.5 at (5, ±0.5); switch at x = 15.5 not 15.4; missed waypoint
+  (16, 3) switches; one switch per update; d_end = 57.21 m at the start;
+  finished at x ≤ 0.5; ψ_d = ∓0.3218 rad at (5, ±1); carry-over target
+  (17.894, 0.447) at (15, 0); ψ_d = ±2.976 across ±π on segment 8); `test_mix`
+  still 9; Python 28 OK.
+- **Can't check:** nothing GUI; whether Δ = 3 m and R_switch = 1.5 m suit the
+  Gazebo boat is seen in M1.3/M1.5.
+
+#### M1.2b Report (2026-10-18)
+- **What changed**
+  - `include/asv_sim/angles.hpp`, `src/angles.cpp`: `wrap_angle()` to
+    (−π, π], `yaw_from_quaternion()`.
+  - `include/asv_sim/guidance.hpp`, `src/guidance.cpp`: `Point2`; `Route`
+    (s, e, switching, `remaining_distance()` = d_end, `finished()`);
+    `LosGuidance` (p_LOS with the lookahead carried along the route, ψ_d).
+  - `test/test_angles.cpp` (6 gtests), `test/test_guidance.cpp` (14 gtests).
+  - `CMakeLists.txt`: the two sources in `asv_sim_guidance`, two gtests.
+  - This plan (§5.1, §5.2 implemented form; 10.6, 10.7 decided),
+    `docs/master_plan.md`, `docs/glossary.md` (R_switch, p_LOS, d_end; LOS
+    entry), `CLAUDE.md` (Known state, test baseline).
+- **How it was checked**
+  - Clean rebuild (`--cmake-target clean`, then `colcon build
+    --packages-select asv_sim --event-handlers console_direct+`): 0 lines
+    matching "warning".
+  - `colcon test --packages-select asv_sim && colcon test-result --verbose`:
+    `test_angles` 6, `test_guidance` 14, `test_mix` 9 tests, 0 failures;
+    summary `32 tests, 0 errors, 0 failures, 0 skipped` (29 gtests + 3 CTest
+    wrappers).
+  - `python3 -m unittest discover -s tests`: `Ran 28 tests ... OK`.
+- **Not checked:** no Gazebo in this step; Δ = 3 m and R_switch = 1.5 m meet
+  the real boat dynamics first in M1.3, tuning in M1.5.
+- **How to read the code:** `angles.hpp` (two functions) → `guidance.hpp`
+  (the contract of `Route` and `LosGuidance`) → `guidance.cpp`:
+  `Route::update()` = §5.1 (s, e and the switch test), `remaining_distance()`
+  = d_end (10.7 a), `LosGuidance::compute()` = §5.2 implemented form (the
+  walk along the route, 10.6 a). Tests follow the brief's order.
+- **Numbers:** route length 57.21 m from W0 = (0, 0) [MEASURED gtest, route of
+  §2 REPO]; γ_1 = 0.4636 rad; ψ_d = ∓0.3218 rad at 1 m left/right of segment 0
+  with Δ = 3 m; carry-over target (17.894, 0.447) m at (15, 0); FINISHED at
+  x ≤ 0.5 m with R_switch = 1.5 m [EST starting values, `task1_route.yaml`
+  plan §6].
+- **Check your understanding**
+  1. At p = (15, 0), why does the old target (18, 0) make the boat cut the
+     corner at W1, and the new one not?
+  2. Why can the switch test fire for a missed waypoint while a 1.5 m circle
+     around W1 would not?
+  3. Why is wrap(−π) mapped to +π, and where would two different values for
+     the same direction cause trouble?
+
 ### Step 3 — The node (`src/waypoint_follower.cpp`)  (M1.3)
 Parameters (section 6), odometry subscription, 20 Hz ROS-clock timer, the
 state machine (5.7), publishing commands + the four autonomy topics (`path`
@@ -511,12 +595,16 @@ decides.
    1.4 m off the route. Options: carry the leftover lookahead onto the next
    segment (target stays on the route; recommended), or a smaller Δ in the
    loop.
+   **decided 2026-10-18:** a, carry the lookahead onto the next segments
+   (M1.2b).
 7. **d_end and FINISHED.** $d_\text{end}$ is not defined. As a straight line
    to W9 it would slow the start, because the boat spawns 1 m from W9 =
    (−1, 0). Proposed: $d_\text{end}$ = remaining distance along the route
    ($\ell_i - s$ plus the later segments). Also say when FINISHED fires: on
    the last segment when $s \ge \ell_8 - R_\text{switch}$ (x ≤ 0.5 m), or at
    W9.
+   **decided 2026-10-18:** a, $d_\text{end}$ along the route; FINISHED on the
+   last segment when $s \ge \ell_8 - R_\text{switch}$ (M1.2b).
 8. **Parameter sources.** `boat_half_width` (0.44 m = 0.66/2 + 0.11 from
    `asv.yaml`) should be computed by the launch file like the drag values;
    `gate_coords` and `buoy_radius` repeat the world and model files and can
