@@ -188,8 +188,9 @@ D11 message content) is raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (commit 6b8be2b): 28 Python tests, run with `unittest` only;
-  `colcon test` runs no `asv_sim` tests until the first gtest is added in M1.2.
+  Current baseline (M1.2a): 28 Python tests, run with `unittest`; `colcon test`
+  for `asv_sim` runs 9 gtests (`test_mix`; `colcon test-result` counts 10,
+  the extra one is CTest's wrapper).
   Report both numbers after every step.
 - **Python 3** for tools, launch files and offline analysis.
 - **Frames**: world = ENU (x east, y north, z up), boat = base_link (x forward,
@@ -289,10 +290,11 @@ use_sim_time:=true`); you can't run or test the key input.
 ## Known state / caveats
 Update this section in the same commit as the step that changes it.
 
-- **No C++ code exists yet** (commit 6b8be2b): `CMakeLists.txt` has no C++
-  targets, and `mix()`, the teleop and the C++ tests that older docs mention were
-  never written. M1.2 writes the first C++ code and the gtest setup. Check
-  `git log` and the plans for the current state.
+- **C++ so far (M1.2a):** the library `asv_sim_guidance` holds only `mix()`
+  (`include/asv_sim/mix.hpp`, `src/mix.cpp`), tested by `test/test_mix.cpp`.
+  No C++ nodes yet; the teleop that older docs mention was never written.
+  `mix()` takes throttle and spin as fractions of `max_thrust` and keeps the
+  left/right difference on saturation (decision 10.1, 2026-10-18).
 - **GNSS noise bug (until step M2.2):** `asv.yaml` gives GNSS noise in metres, but
   Gazebo applies it in degrees, so the simulated GNSS noise is about 890 m.
   Don't use GNSS data recorded before M2.2.
@@ -327,7 +329,7 @@ ws/                       colcon workspace, mounted in the container at /ws
                           tools/make_roboboat2026_course.py)
     worlds/               roboboat_course.sdf (course + boat), course.sdf
     include/asv_sim/      ROS-free C++ (mix(), Milestone 1 guidance)   (from M1.2)
-    src/                  C++ nodes (waypoint follower, ...)            (from M1.3)
+    src/                  C++ library sources (mix.cpp); nodes from M1.3
     test/                 gtests for the C++ code                       (from M1.2)
     tools/                Python tools: make_asv.py (generator), studies, analysis
     tests/                Python tests of the generator

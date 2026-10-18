@@ -317,6 +317,69 @@ Unit tests in `test/test_mix.cpp` and `test/test_guidance.cpp`:
 - **Check:** all tests pass (`colcon test` now runs the gtests; the 28 Python
   tests still pass).
 
+**Split (agreed 2026-10-18):** M1.2a `mix()` + C++/gtest setup; M1.2b angle
+helpers, `Route`, `LosGuidance` (10.6, 10.7); M1.2c `HeadingControl`,
+`SpeedControl` (10.2, 10.3); M1.2d `GateMonitor` (10.8); M1.2e closed-loop
+logic test (10.4, 10.5). One commit each.
+
+#### M1.2a Brief (agreed 2026-10-18)
+- **Goal:** set up C++ and gtest in `asv_sim` and write `mix()`: (throttle,
+  steer, spin) → left/right thrust [N] and pod angle [rad], clamped to the
+  boat's limits.
+- **Decisions:** 10.1 fractions of `max_thrust`, saturation b ("turning
+  wins"); 10.2 c (not in `mix()`).
+- **Why:** follower (M1.3), maneuver player (M1.7) and teleop (M1.8) all drive
+  the boat through `mix()`. Experimental Scenarios; App. C.
+- **New ideas:** thrust allocation; saturation (glossary).
+- **Files:** ⚠ `package.xml` (`test_depend` `ament_cmake_gtest`),
+  `CMakeLists.txt` (C++17, library `asv_sim_guidance`, gtest),
+  `include/asv_sim/mix.hpp`, `src/mix.cpp`, `test/test_mix.cpp`; this plan,
+  `docs/master_plan.md`, `docs/glossary.md`, `CLAUDE.md` (Known state, layout).
+- **How it works:** limits T_max = 50 N, T_min = −40 N, steer_limit =
+  1.5708 rad [REPO `asv.yaml`] come in a `ThrusterLimits` struct.
+  Wanted T_L* = T_max(throttle − spin), T_R* = T_max(throttle + spin). Larger
+  side above T_max → shift both down; smaller side below T_min → shift both up;
+  difference above T_max − T_min → clip both. Then clamp each side. Pods:
+  δ = clamp(−steer, ±steer_limit). Yaw moment (10.2):
+  N = −0.70 (T_L + T_R) sin δ + 0.33 (T_R − T_L) cos δ. Example throttle 1.0,
+  spin 0.4: wanted (30, 70) N → (10, 50) N, 40 N difference kept. The pod rate
+  limit (2 rad/s) stays in Gazebo's plugin.
+- **Check:** gtest `test_mix` (zero in/out, straight thrust, steer and spin
+  signs with N > 0, clamps, saturation (10, 50) and (−40, 50)); Python 28 OK.
+- **Can't check:** nothing GUI; `mix()` first drives the Gazebo boat in M1.3.
+
+#### M1.2a Report (2026-10-18)
+- **What changed**
+  - `include/asv_sim/mix.hpp`: `ThrusterLimits`, `ThrusterCommand`, `mix()`
+    declaration with the sign and unit conventions.
+  - `src/mix.cpp`: `mix()`: wanted thrusts, shift to keep the difference,
+    clamp, pod angle = clamp(−steer).
+  - `test/test_mix.cpp`: 9 gtests.
+  - `CMakeLists.txt`: C++17, `-Wall -Wextra -Wpedantic`, library
+    `asv_sim_guidance`, install of headers and library, gtest `test_mix`.
+  - `package.xml`: `<test_depend>ament_cmake_gtest</test_depend>`.
+  - `docs/master_plan.md` (rows M1.2a–e), `docs/glossary.md` (saturation,
+    thrust allocation), `CLAUDE.md` (Known state, test baseline, layout).
+- **How it was checked**
+  - `colcon build --symlink-install --packages-up-to asv_sim`:
+    `Finished <<< asv_sim`; clean rebuild with `console_direct+`: 0 warnings.
+  - `colcon test --packages-select asv_sim && colcon test-result --verbose`:
+    `test_mix.gtest.xml: 9 tests, 0 errors, 0 failures`; summary
+    `10 tests, 0 errors, 0 failures, 0 skipped` (the 10th is CTest's wrapper).
+  - `python3 -m unittest discover -s tests`: `Ran 28 tests ... OK`.
+- **Not checked:** `mix()` has not driven the Gazebo boat yet (M1.3). The
+  test's yaw-moment helper is the steady formula of 10.2, not Gazebo.
+- **How to read the code:** start at `mix.hpp` (conventions), then
+  `mix.cpp` top to bottom: wanted T_L*, T_R* (§5.5) → shift (10.1 b) →
+  clamp → δ = −steer. Tests in the same order as the brief.
+- **Numbers:** T_max 50 N, T_min −40 N, steer_limit 1.5708 rad [REPO
+  `asv.yaml`]; throttle 1.0 + spin 0.4 → (10, 50) N; spin ±1.0 →
+  (−40, 50) / (50, −40) N [MEASURED gtest].
+- **Check your understanding**
+  1. Why does the boat turn less at full throttle with option a than with b?
+  2. Throttle −1.0, spin 0.2: which side is shifted, and in which direction?
+  3. Why does `mix()` never flip the pod angle when the thrust is negative?
+
 ### Step 3 — The node (`src/waypoint_follower.cpp`)  (M1.3)
 Parameters (section 6), odometry subscription, 20 Hz ROS-clock timer, the
 state machine (5.7), publishing commands + the four autonomy topics (`path`
@@ -405,6 +468,8 @@ decides.
    happens when throttle ± spin saturates (keep the spin difference and lower
    both, or clip each side), and whether throttle and spin are fractions of
    `max_thrust` (as proposed) or newtons.
+   **decided 2026-10-18:** fractions of `max_thrust`; on saturation keep the
+   left/right difference and lower both sides ("turning wins", option b).
 2. **Steering with reverse thrust.** The yaw moment of the pods is
    $-0.70\,(T_L + T_R)\sin\delta + 0.33\,(T_R - T_L)\cos\delta$
    ($\delta$ = pod angle; pods 0.70 m behind base_link, which is close to
@@ -418,6 +483,8 @@ decides.
    `mix()`; c) throttle ≥ 0 while turning (|ψ̃| above a threshold).
    Recommended: c (the pods always push forward, so the sign rule always holds;
    a and b switch at throttle ≈ 0 and can chatter). Needs a unit test.
+   **decided 2026-10-18:** c (built in SpeedControl, M1.2c); `mix()` keeps
+   pod angle = −steer.
 3. **Spin assist is on/off.** At the threshold, $K_\text{spin}\psi_\text{spin}
    = 0.5 \cdot 0.8 = 0.4$ = spin_max, so spin jumps from 0 to ±0.4 (±20 N per
    side) and can chatter around |ψ̃| = 0.8 rad. Proposed: spin =

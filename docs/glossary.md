@@ -326,6 +326,10 @@ can run slower or faster than real time and is published on `/clock`. A node wit
 `use_sim_time:=true` uses that clock instead of the computer's (but a "wall
 timer" still runs on the computer's clock).
 
+**Saturation.** A command larger than the actuator can give (e.g. more than
+50 N forward thrust). Something has to give way; `mix()` keeps the left/right
+thrust difference (the turn) and lowers both sides (M1.2a).
+
 **Sky-view outage.** The antennas can't see the satellites (e.g. under a bridge):
 position, Doppler velocity and dual-antenna heading are all lost. Compare with
 losing only the base station's corrections, where the receiver falls back to
@@ -346,6 +350,10 @@ all in the boat frame. [vehicle-motion-model-notes]
 
 **Sweep.** Running the same experiment over a list of settings (e.g. noise levels)
 and collecting the results in one table.
+
+**Thrust allocation (mixing).** Turning what the boat should do (go forward,
+turn) into a command for each actuator (two thrusts, two pod angles). Our
+allocator is `asv_sim::mix()`.
 
 **Trajectory alignment.** Shifting and rotating an estimated path so that it best
 fits the true path before measuring the error. Common in visual SLAM; we don't do
