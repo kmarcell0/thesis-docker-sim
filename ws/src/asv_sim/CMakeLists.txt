@@ -15,6 +15,7 @@ find_package(ament_cmake REQUIRED)
 add_library(asv_sim_guidance
   src/angles.cpp
   src/control.cpp
+  src/gate_monitor.cpp
   src/guidance.cpp
   src/mix.cpp
 )
@@ -48,6 +49,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_guidance asv_sim_guidance)
   ament_add_gtest(test_control test/test_control.cpp)
   target_link_libraries(test_control asv_sim_guidance)
+  ament_add_gtest(test_gate_monitor test/test_gate_monitor.cpp)
+  target_link_libraries(test_gate_monitor asv_sim_guidance)
 endif()
 
 ament_package()

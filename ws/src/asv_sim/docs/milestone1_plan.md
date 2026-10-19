@@ -232,6 +232,23 @@ Also tracks the minimum distance from the boat's side to the surface of every
 buoy (collision check, same radius). Results go to the status topic and the
 log.
 
+**Implemented form (M1.2d, decisions 10.9 a, 10.10 a, 10.11 b;
+`gate_monitor.hpp`).** Gate g has red buoy a and green buoy b, width
+$w_g = |b - a|$, unit vector $\hat u = (b - a)/w_g$. Side value
+$f(q) = (b - a) \times (q - a)$; a crossing happens when $f \ge 0$ changes
+between the previous position $p^-$ and $p$ (half-open, so landing exactly on
+the line counts once). Crossing point $q = p^- + t(p - p^-)$,
+$t = f(p^-)/(f(p^-) - f(p))$; offset $o = w_g/2 - (q - a)\cdot\hat u$ (> 0
+towards red). Crossings with $|o| > w_g/2 + $ `gate_capture` are ignored.
+Direction OUTBOUND if $(b - a) \times (p - p^-) > 0$ (Task 1: eastward).
+Result: FAIL_OUTSIDE if $|o| > w_g/2$; PASS if
+$-(w_g/2 - r_\text{green} - b_w - d_m) \le o \le w_g/2 - r_\text{red} - b_w - d_m$
+(each buoy its own radius); FAIL_CLOSE otherwise. Clearance to buoy j with
+the boat as a rectangle $L \times 2b_w$ centred on base_link:
+$d = R(-\psi)(c_j - p)$, $k$ = $d$ clamped to $[-L/2, L/2] \times [-b_w, b_w]$,
+$c_j = |d - k| - r_j$; the smallest per buoy and overall are kept, and a
+collision is flagged once $c_j \le 0$. Sampled once per control step.
+
 ### 5.7 Safety and states
 `WAITING` (no odometry yet, or the start delay - 3 s, lets the boat settle on
 the water) → `RUNNING 1/9` … `RUNNING 9/9` → `FINISHED` (all thrust 0, pods
@@ -273,12 +290,22 @@ waypoint_follower:
     turn_threshold: 0.3         # rad, psi_turn: throttle >= 0 above it (10.2 c)
     min_throttle: -0.3          # lower throttle limit when not turning
     max_throttle: 1.0
-    # gates: name + red buoy (x, y) + green buoy (x, y)
+    # buoys (world frame, nominal) [REPO task pose x model pose]; radius per
+    # model: Sur-Mark 0.2286, A0 0.1015, A2 0.184 m (models/rb26_*/model.sdf).
+    # Gate buoys + nearby buoys (10.11 b); from buoys_gt.yaml after M2.7.
+    buoy_names: [gate1_red, gate1_green, gate2_red, gate2_green,
+                 t2_ch1_red, t2_ch1_green, t3_red, t3_green]
+    buoy_coords: [5.0, 1.524, 5.0, -1.524, 13.0, 1.524, 13.0, -1.524,
+                  20.781, 6.0, 23.219, 6.0, 30.0, -4.476, 30.0, -7.524]
+    buoy_radii: [0.2286, 0.2286, 0.2286, 0.2286, 0.1015, 0.1015, 0.184, 0.184]
+    # gates: name + red and green buoy by name (only the Task 1 gates are checked)
     gate_names: [gate1, gate2]
-    gate_coords: [5.0, 1.524, 5.0, -1.524, 13.0, 1.524, 13.0, -1.524]
-    gate_margin: 0.5            # m between the boat's side and a buoy's surface
-    buoy_radius: 0.2286         # m, Sur-Mark (models/rb26_surmark_*/model.sdf)
-    boat_half_width: 0.44       # m (= hull spacing/2 + hull radius; see 10.8)
+    gate_red: [gate1_red, gate2_red]
+    gate_green: [gate1_green, gate2_green]
+    gate_margin: 0.5            # m between the boat's side and a buoy's surface (d_m)
+    gate_capture: 2.0           # m beyond a buoy centre still reported, FAIL_OUTSIDE [EST] (10.10)
+    # boat_half_width (0.44 m) and boat_length (1.60 m) are computed by the
+    # launch file from asv.yaml (10.8 a), not set here.
 ```
 
 The boat's own values - drag coefficients ($X_u$, $X_{uu}$), `max_thrust`,
@@ -554,6 +581,78 @@ logic test (10.4, 10.5). One commit each.
   3. In the anti-windup test, what would the throttle do after the error
      reverses if the integral had grown for the full 100 s?
 
+#### M1.2d Brief (agreed 2026-10-19)
+- **Goal:** ROS-free `GateMonitor`: gate crossings (gate, direction, offset,
+  pass/fail) and the smallest clearance between the boat and every buoy.
+- **Decisions:** 10.8 a, 10.9 a, 10.10 a, 10.11 b (all 2026-10-19).
+- **Why:** judges the runs (success criteria 2 and 3, section 1); M1.2e and
+  M1.3 use it. Experimental Scenarios; App. C.
+- **New ideas:** gate (course), gate offset o, clearance c_j (glossary).
+- **Files:** `include/asv_sim/gate_monitor.hpp`, `src/gate_monitor.cpp`,
+  `test/test_gate_monitor.cpp`, `CMakeLists.txt`; this plan (5.6, 6, 10),
+  `docs/master_plan.md`, `docs/glossary.md`, `CLAUDE.md`. No new dependency.
+- **How it works:** `Buoy {name, c, r}`, `Gate {name, red, green}`,
+  `BoatFootprint {L = 1.60, b_w = 0.44}`. `update(p, ψ)`: with a = red,
+  b = green, f(q) = (b − a) × (q − a); a crossing happens when `f ≥ 0` changes
+  between p⁻ and p (half-open); q = p⁻ + t(p − p⁻), t = f(p⁻)/(f(p⁻) − f(p));
+  o = w_g/2 − (q − a)·û (> 0 towards red), ignored if |o| > w_g/2 + capture
+  (2 m [EST]); OUTBOUND if (b − a) × (p − p⁻) > 0. PASS if
+  −(w_g/2 − r_green − b_w − d_m) ≤ o ≤ w_g/2 − r_red − b_w − d_m (Task 1:
+  ±0.3554 m); FAIL_OUTSIDE if |o| > w_g/2; FAIL_CLOSE otherwise. Clearance:
+  d = R(−ψ)(c_j − p), k = clamp of d to the rectangle (±L/2, ±b_w),
+  c_j = |d − k| − r_j; smallest per buoy and overall; collision once c_j ≤ 0.
+  The first call only stores p.
+- **Check:** gtest `test_gate_monitor`: one PASS outbound / inbound at y = 0;
+  band edge 0.355 PASS, 0.356 FAIL_CLOSE (both sides); y = 2 FAIL_OUTSIDE,
+  y = 4 no event; landing on the line counts once, three wiggles three
+  events; clearance 0.8554 m heading east, 0.4954 m heading north at (5, 0);
+  collision at (5, 1.0) (c = −0.1446); uneven band with mixed radii; Task 2/3
+  buoys tracked; invalid arguments throw. Other gtests unchanged; Python 28 OK.
+- **Can't check:** nothing GUI; buoy drift (nominal positions until M2.7);
+  real passes in Gazebo come in M1.3/M1.5.
+
+#### M1.2d Report (2026-10-19)
+- **What changed**
+  - `include/asv_sim/gate_monitor.hpp`, `src/gate_monitor.cpp`: `Buoy`,
+    `Gate`, `BoatFootprint`, `GateEvent`; `GateMonitor` (crossings with
+    direction, offset and PASS / FAIL_CLOSE / FAIL_OUTSIDE; clearance of the
+    turned rectangle to every buoy, minimum per buoy, collision flag).
+  - `test/test_gate_monitor.cpp` (15 gtests); `CMakeLists.txt`: the source in
+    `asv_sim_guidance`, gtest `test_gate_monitor`.
+  - This plan: §5.6 implemented form, §6 (per-buoy list with radii, gates by
+    buoy name, `gate_capture`; boat size from `asv.yaml`), 10.8–10.11
+    decided; `docs/master_plan.md`, `docs/glossary.md` (w_g, o, c_j, L, b_w,
+    d_m; "Gate (course)", "Clearance"), `CLAUDE.md` (Known state, baseline,
+    layout).
+- **How it was checked**
+  - Clean rebuild (`--cmake-target clean`, then `colcon build --symlink-install
+    --packages-up-to asv_sim --event-handlers console_direct+`): 0 lines
+    matching "warning".
+  - `colcon test --packages-select asv_sim && colcon test-result --verbose`:
+    `test_mix` 9, `test_angles` 6, `test_guidance` 14, `test_control` 18,
+    `test_gate_monitor` 15, 0 failures; summary `67 tests, 0 errors,
+    0 failures, 0 skipped` (62 gtests + 5 CTest wrappers).
+  - `python3 -m unittest discover -s tests`: `Ran 28 tests ... OK`.
+- **Not checked:** no Gazebo in this step; the monitor uses nominal buoy
+  positions (drift is measured in M2.7); real passes are seen in M1.3/M1.5.
+  Clearance is sampled once per control step, so a contact shorter than one
+  step could be missed [EST: 5 cm of travel at 1 m/s, 20 Hz].
+- **How to read the code:** `gate_monitor.hpp` (data types and the contract)
+  → `gate_monitor.cpp`: `side_value()` = f(q); `update()` = crossing test,
+  t, q, offset o, direction and the §5.6 band; `clearance()` = c_j
+  (R(−ψ), clamp to the rectangle). Tests follow the brief's order.
+- **Numbers:** gate band ±0.3554 m = 1.524 − 0.2286 − 0.44 − 0.5 [REPO
+  course and `asv.yaml`; d_m = 0.5 m EST]; clearance to a gate buoy on the
+  centre line 0.8554 m beside the boat, 0.4954 m off the bow [MEASURED gtest];
+  capture 2 m [EST]; buoy radii 0.2286 / 0.1015 / 0.184 m [REPO
+  `models/rb26_*/model.sdf`].
+- **Check your understanding**
+  1. Why does a step that ends exactly on the gate line, followed by a step
+     off it, give one event and not two? Which comparison makes that so?
+  2. The boat crosses gate 1 at o = 0 but with ψ = 60°. The band says PASS.
+     What does the clearance check say, and why can the two disagree?
+  3. Why is the band uneven for a gate with an A2 red and a Sur-Mark green buoy?
+
 ### Step 3 — The node (`src/waypoint_follower.cpp`)  (M1.3)
 Parameters (section 6), odometry subscription, 20 Hz ROS-clock timer, the
 state machine (5.7), publishing commands + the four autonomy topics (`path`
@@ -704,3 +803,22 @@ decides.
    come from the ground-truth buoy file once M2.7 exists. Every parameter gets
    a source tag (CLAUDE.md): [EST] for the starting gains, [REPO] for the
    geometry.
+   **decided 2026-10-19:** a, the launch file computes `boat_half_width`
+   (0.66/2 + 0.11 = 0.44 m) and `boat_length` (1.60 m) from `asv.yaml`; gates
+   and buoys (with one radius each) are in `task1_route.yaml` [REPO] until
+   M2.7, then come from `buoys_gt.yaml` (no reason given).
+9. **Boat shape in the gate monitor (found 2026-10-19).** Section 5.6 used a
+   circle of radius `boat_half_width`, which misses the bow and stern (hulls
+   1.60 m long). Options: a) offset band for gate pass/fail, the 1.60 × 0.88 m
+   rectangle turned by ψ for the clearance; b) circle for both; c) rectangle
+   for both. **decided 2026-10-19:** a (no reason given).
+10. **Crossing outside the buoys (found 2026-10-19).** Section 5.6 only
+    counted crossings between the buoy centres, so going round a buoy gave no
+    event. Options: a) report crossings of the extended gate line up to
+    `gate_capture` (2 m [EST]) beyond each buoy, FAIL_OUTSIDE when outside;
+    b) only between the buoys. **decided 2026-10-19:** a (no reason given).
+11. **Buoys in the clearance check (found 2026-10-19).** Options: a) the 4
+    gate buoys; b) also the nearby Task 2 channel gate 1 and Task 3 gate
+    buoys, typed into `task1_route.yaml`. **decided 2026-10-19:** b (no
+    reason given). These buoys have other radii (A0 0.1015 m, A2 0.184 m
+    [REPO `models/rb26_*/model.sdf`]), so every buoy has its own radius.

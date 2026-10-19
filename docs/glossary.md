@@ -64,6 +64,11 @@ proposes, Marcell decides, and then this table is updated.
 | K_P, K_I, I | speed PI gains and the integral of the speed error | 1/(m/s), 1/m; m | proposed |
 | δ | pod (steering) angle; positive turns the boat right | rad | proposed (the buoy offset in `design.md` §6 is d) |
 | T_L, T_R | left and right thrust | N | proposed |
+| w_g | gate width: distance between the centres of a gate's red and green buoys | m | proposed |
+| o | gate offset: where the boat's centre crosses the gate line, from the gate centre, > 0 towards the red buoy | m | proposed |
+| c_j | clearance: shortest distance from the boat's rectangle to the surface of buoy j (< 0: overlap) | m | proposed |
+| L, b_w | boat length (hull length) and half width (hull spacing/2 + hull radius) | m | proposed |
+| d_m | gate margin: required gap between the boat's side and a buoy's surface | m | proposed |
 | X_u, X_uu; n_R, n_RR | linear and quadratic drag in surge and in yaw (`xU`, `xUU`, `nR`, `nRR` in `asv.yaml`) | | proposed |
 
 ---
@@ -126,6 +131,10 @@ where 95 % of values should fall. Above the band: the filter is over-confident
 **Clean / realistic data.** *Clean*: perfect sensor data from Gazebo, without
 noise. *Realistic*: the same data after our corruptor has added noise, biases and
 outages.
+
+**Clearance.** The gap between the boat and a buoy: the shortest distance from
+the boat's outline (a rectangle, turned with the heading) to the buoy's surface.
+Zero or negative means they touch, i.e. a collision.
 
 **Coloured noise.** Noise that is correlated over time (not white), e.g. the
 slowly varying GNSS error.
@@ -209,6 +218,11 @@ speed. The feedback (PI) part only corrects what the model gets wrong.
 lidar_link, ...). *TF* is the ROS system that knows how frames are placed
 relative to each other. The *TF tree* is the set of all these links; each frame
 can have only one parent.
+
+**Gate (course).** Two buoys, red and green, that the boat must pass between
+(Task 1 has two). Not the same as the Mahalanobis gate below. The gate monitor
+reports each crossing as PASS, FAIL_CLOSE (too close to a buoy) or
+FAIL_OUTSIDE (went round a buoy).
 
 **Gate (Mahalanobis gate).** A test that rejects a measurement if it is too far
 from where a buoy is expected, measured in units of the expected uncertainty
