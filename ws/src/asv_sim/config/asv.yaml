@@ -39,7 +39,10 @@ hydrodynamics:            # water drag (VRX SimpleHydrodynamics), uncalibrated
   xU: 4.0                 # surge, linear     (taken from VRX roboboat01)
   xUU: 6.0                # surge, quadratic
   yV: 4.0
-  yVV: 4.0
+  yVV: 58.0              # sway, quadratic: 1/2 rho C_d A_lat, A_lat = 2 hulls x
+                          # 1.60 m x draft 0.0455 m = 0.146 m^2, C_d = 0.8 [EST,
+                          # range 0.6-1.0] (milestone1_plan.md 10.12; was 4.0
+                          # from VRX roboboat01: the boat slid sideways at 1.25 m/s)
   zW: 20.0
   kP: 12.0
   kPP: 24.0

@@ -1,4 +1,4 @@
-=== asv design report (fingerprint dcee21334fd0) ===
+=== asv design report (fingerprint 138175366d5e) ===
 
 Layout     OK: no overlapping components, sensors or mounts
 

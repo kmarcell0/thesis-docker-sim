@@ -1,4 +1,5 @@
-// Unit tests for HeadingControl and SpeedControl (M1.2c), with the starting
+// Unit tests for HeadingControl and SpeedControl (M1.2c) and course_angle()
+// (M1.2f), with the starting
 // values of milestone1_plan.md section 6 [EST] and the boat values of
 // config/asv.yaml [REPO].
 #include <gtest/gtest.h>
@@ -11,6 +12,7 @@
 namespace
 {
 
+using asv_sim::course_angle;
 using asv_sim::HeadingControl;
 using asv_sim::HeadingGains;
 using asv_sim::SpeedControl;
@@ -19,8 +21,10 @@ using asv_sim::SpeedGains;
 constexpr double kTol = 1e-9;
 constexpr double kDt = 0.05;  // s, one step at 20 Hz
 
-// heading_kp, heading_kd, max_steer, spin_threshold, spin_kp, spin_max
-const HeadingGains kHeading{1.2, 0.6, 0.8, 0.8, 1.0, 0.4};
+// heading_kp, heading_kd, max_steer, spin_threshold, spin_kp, spin_max,
+// spin_small_kp. The spin-law tests below use their own numbers (K_s = 0
+// keeps the M1.2c law); the starting values are in section 6.
+const HeadingGains kHeading{1.2, 0.6, 0.8, 0.8, 1.0, 0.4, 0.0};
 
 // xU, xUU, max_thrust (asv.yaml); speed_kp, speed_ki, stop_gain,
 // turn_threshold, min_throttle, max_throttle (task1_route.yaml)
@@ -110,6 +114,43 @@ TEST(HeadingControl, InvalidGainsThrow)
   g = kHeading;
   g.spin_threshold = NAN;
   EXPECT_THROW(HeadingControl{g}, std::invalid_argument);
+  g = kHeading;
+  g.spin_small_kp = -1.0;
+  EXPECT_THROW(HeadingControl{g}, std::invalid_argument);
+}
+
+// ---- Proportional spin (M1.2f, 10.16 a) -----------------------------------
+
+TEST(HeadingControl, ProportionalSpinBelowThreshold)
+{
+  HeadingGains g = kHeading;
+  g.spin_small_kp = 2.0;
+  HeadingControl hc(g);
+  // Below psi_spin only K_s psi~ is left; > 0 turns left like steer.
+  EXPECT_NEAR(hc.compute(0.1, 0.0, 0.0).spin, 0.2, kTol);
+  EXPECT_NEAR(hc.compute(-0.1, 0.0, 0.0).spin, -0.2, kTol);
+  EXPECT_EQ(hc.compute(0.0, 0.0, 0.0).spin, 0.0);
+}
+
+TEST(HeadingControl, ProportionalSpinAddsToRampAndSaturates)
+{
+  HeadingGains g = kHeading;
+  g.spin_small_kp = 0.1;
+  HeadingControl hc(g);
+  // psi~ = 1.0: 0.1 * 1.0 + 1.0 * (1.0 - 0.8) = 0.3.
+  EXPECT_NEAR(hc.compute(1.0, 0.0, 0.0).spin, 0.3, kTol);
+  // psi~ = 1.2: 0.12 + 0.4 > spin_max -> 0.4.
+  EXPECT_NEAR(hc.compute(1.2, 0.0, 0.0).spin, 0.4, kTol);
+  EXPECT_NEAR(hc.compute(-1.2, 0.0, 0.0).spin, -0.4, kTol);
+}
+
+TEST(HeadingControl, ProportionalSpinContinuousAtThreshold)
+{
+  HeadingGains g = kHeading;
+  g.spin_small_kp = 2.0;
+  HeadingControl hc(g);
+  EXPECT_NEAR(hc.compute(0.8 + 1e-9, 0.0, 0.0).spin,
+    hc.compute(0.8 - 1e-9, 0.0, 0.0).spin, 1e-7);
 }
 
 // ---- SpeedControl ---------------------------------------------------------
@@ -230,6 +271,56 @@ TEST(SpeedControl, InvalidGainsThrow)
   g = kSpeed;
   g.drag_quadratic = NAN;
   EXPECT_THROW(SpeedControl{g}, std::invalid_argument);
+}
+
+// ---- course_angle (M1.2f, 10.13 a) ----------------------------------------
+
+constexpr double kMinSpeed = 0.3;  // m/s, u_min (task1_route.yaml) [EST]
+
+TEST(CourseAngle, NoSwayGivesHeading)
+{
+  EXPECT_NEAR(course_angle(0.7, 1.0, 0.0, kMinSpeed), 0.7, kTol);
+  EXPECT_NEAR(course_angle(-2.0, 0.5, 0.0, kMinSpeed), -2.0, kTol);
+}
+
+TEST(CourseAngle, SwayTurnsCourseTowardsIt)
+{
+  // v > 0 (moving to the left) puts the course left of the heading.
+  EXPECT_NEAR(course_angle(0.0, 1.0, 1.0, kMinSpeed), M_PI / 4.0, kTol);
+  EXPECT_NEAR(course_angle(0.5, 1.0, -1.0, kMinSpeed), 0.5 - M_PI / 4.0, kTol);
+}
+
+TEST(CourseAngle, WrapsAcrossPi)
+{
+  // heading 3.0 rad + 0.5 rad to the left = 3.5 rad -> 3.5 - 2 pi.
+  const double v = std::tan(0.5);
+  EXPECT_NEAR(course_angle(3.0, 1.0, v, kMinSpeed), 3.5 - 2.0 * M_PI, kTol);
+  EXPECT_NEAR(course_angle(-3.0, 1.0, -v, kMinSpeed), -3.5 + 2.0 * M_PI, kTol);
+}
+
+TEST(CourseAngle, LowSpeedGuardRamps)
+{
+  // Below u_min the forward speed is replaced by u_min (S1, a ramp): a
+  // stopped boat that drifts sideways does not get a 90 deg course.
+  EXPECT_NEAR(course_angle(0.0, 0.0, 0.1, kMinSpeed), std::atan2(0.1, 0.3), kTol);
+  EXPECT_NEAR(course_angle(0.0, 0.0, 0.0, kMinSpeed), 0.0, kTol);
+  // Continuous at u = u_min.
+  EXPECT_NEAR(course_angle(0.0, 0.3 - 1e-9, 0.1, kMinSpeed),
+    course_angle(0.0, 0.3 + 1e-9, 0.1, kMinSpeed), 1e-8);
+}
+
+TEST(CourseAngle, ReverseStaysBounded)
+{
+  // u < 0: still within +-90 deg of the heading, never flipped by pi.
+  const double chi = course_angle(0.0, -1.0, 0.2, kMinSpeed);
+  EXPECT_NEAR(chi, std::atan2(0.2, 0.3), kTol);
+  EXPECT_LT(std::abs(chi), M_PI / 2.0);
+}
+
+TEST(CourseAngle, InvalidMinSpeedThrows)
+{
+  EXPECT_THROW(course_angle(0.0, 1.0, 0.0, -0.1), std::invalid_argument);
+  EXPECT_THROW(course_angle(0.0, 1.0, 0.0, NAN), std::invalid_argument);
 }
 
 }  // namespace

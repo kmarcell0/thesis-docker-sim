@@ -51,6 +51,15 @@ if(BUILD_TESTING)
   target_link_libraries(test_control asv_sim_guidance)
   ament_add_gtest(test_gate_monitor test/test_gate_monitor.cpp)
   target_link_libraries(test_gate_monitor asv_sim_guidance)
+
+  # Closed-loop logic test (M1.2e): reads the boat values from config/asv.yaml
+  # and config/asv_report.json in the source tree.
+  find_package(yaml_cpp_vendor REQUIRED)
+  find_package(yaml-cpp REQUIRED)
+  ament_add_gtest(test_closed_loop test/test_closed_loop.cpp)
+  target_link_libraries(test_closed_loop asv_sim_guidance yaml-cpp::yaml-cpp)
+  target_compile_definitions(test_closed_loop PRIVATE
+    ASV_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
 endif()
 
 ament_package()

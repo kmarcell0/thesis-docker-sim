@@ -208,6 +208,14 @@ class Pipeline(unittest.TestCase):
         total = sum(i.mass for i in self.boat.mass_items + self.boat.pod_items)
         self.assertTrue(close(total, self.boat.total.mass, 1e-9))
 
+    def test_report_has_whole_boat_inertia(self):
+        """inertia_cog includes the pods, so its Izz exceeds base_link's alone."""
+        izz = self.metrics['mass']['inertia_cog'][2][2]
+        self.assertTrue(close(izz, self.boat.total.tensor[2][2], 1e-5))
+        model = ET.fromstring(sdf_model.to_sdf(self.boat).split('\n', 1)[1]).find('model')
+        base_izz = float(model.find('link').find('inertial').find('inertia').find('izz').text)
+        self.assertGreater(izz, base_izz)
+
     def test_topics_and_frames_unique(self):
         topics = [t.topic for t in outputs.bridge_topics(self.boat)]
         self.assertEqual(len(topics), len(set(topics)))

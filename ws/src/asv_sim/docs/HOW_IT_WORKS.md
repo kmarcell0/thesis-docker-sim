@@ -321,7 +321,10 @@ $I_{xy} = -\sum m\,d_x d_y$.
 Two bodies are computed:
 
 * **`base`**, everything rigidly attached, written as `base_link`'s inertial.
-* **`total`**, base plus pods, used for hydrostatics and the report.
+* **`total`**, base plus pods, used for hydrostatics and the report. The
+  report's `mass.inertia_cog` is its inertia tensor about the CoG (the whole
+  boat; `model.sdf` only has the base and pod parts separately). The
+  closed-loop test (M1.2e) reads I_z from it.
 
 Each pod's mass is split 85 % engine, 15 % propeller, and the pods keep their
 own small inertials because they move relative to the hull.
@@ -587,7 +590,7 @@ distance up to which $\sigma_z/z < 10\,\%$: $z = 0.1\,fB/\sigma_\delta$.
 
 ## 12. Verification (`tests/test_asvgen.py`)
 
-`python3 -m unittest discover -s tests -v` runs 28 tests:
+`python3 -m unittest discover -s tests -v` runs 29 tests:
 
 | Area | What is checked |
 |---|---|
@@ -596,7 +599,7 @@ distance up to which $\sigma_z/z < 10\,\%$: $z = 0.1\,fB/\sigma_\delta$.
 | Hydrostatics | segment area at half/full immersion; segment centroid $4r/3\pi$; Archimedes balance at the solved draft; overloaded boats refused |
 | Config | the shipped config is valid; missing fields, wrong types, unknown sensor type, duplicate names and missing spec fields are reported; unknown keys only warn; overrides by sensor name |
 | Layout | shipped layout has no overlaps; an overlap and a box sunk into the deck are detected; antenna posts start on the hull surface; ray-box slab test; near-field results are consistent; the blind gap of a lidar at the bow equals its blind-cone radius |
-| Pipeline | SDF contains every sensor, 4 joints, 2 buoyancy plugins; mass bookkeeping; unique topics and frames; IMU noise conversion; upside-down lidar looks down to −52°; camera horizon row formula |
+| Pipeline | SDF contains every sensor, 4 joints, 2 buoyancy plugins; mass bookkeeping; the report's whole-boat inertia includes the pods; unique topics and frames; IMU noise conversion; upside-down lidar looks down to −52°; camera horizon row formula |
 | **Consistency with VRX** | VRX's `Surface` force law is re-implemented and applied to the *generated SDF*; at the predicted equilibrium height the total buoyancy equals the weight to 10⁻⁶ |
 
 The last test closes the loop between the analytical hydrostatics and the

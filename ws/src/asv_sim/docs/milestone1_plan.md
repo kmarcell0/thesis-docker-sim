@@ -55,7 +55,7 @@ y = +1.524 and a green buoy at y = −1.524 (Taylor Made Sur-Mark, radius
 
 | Waypoint | x [m] | y [m] | Speed towards it [m/s] | Role |
 |---|---|---|---|---|
-| W0 | 0 | 0 | – | start (spawn position) |
+| W0 | 0 | 0 | – | start (spawn position; fixed in the parameter file, also when the boat starts elsewhere: 10.15 a) |
 | W1 | 17 | 0 | 1.0 | straight out through both gates |
 | W2 | 22 | 2.5 | 0.6 | set up the turn (swing slightly north) |
 | W3 | 25 | 1 | 0.6 | teardrop turn, clockwise |
@@ -174,6 +174,20 @@ $$\text{spin} = \operatorname{sign}(\tilde\psi)\,\operatorname{clamp}\big(K_\tex
 
 With K_spin = 1.0 it reaches spin_max = 0.4 at |ψ̃| = 1.2 rad.
 
+**Implemented form after M1.2f (decisions 10.13 a, 10.14 a, 10.16 a):**
+the error is taken against the **course** χ (where the boat moves), not the
+heading, with a low-speed guard u_min:
+
+$$\chi = \operatorname{wrap}\big(\psi + \operatorname{atan2}(v,\ \max(u, u_\text{min}))\big), \qquad \tilde\psi = \operatorname{wrap}(\psi_d - \chi)$$
+
+The D term stays on ω. Spin gets a proportional part K_s ψ̃ at every error
+size (differential thrust turns the boat without the sideways push of the
+aft pods), and the ramp starts at ψ_spin = 0.3 rad with K_spin = 2.0:
+
+$$\text{spin} = \operatorname{clamp}\big(K_s\,\tilde\psi + \operatorname{sign}(\tilde\psi)\operatorname{clamp}(K_\text{spin}(|\tilde\psi| - \psi_\text{spin}),\ 0,\ \text{spin\_max}),\ \pm\text{spin\_max}\big)$$
+
+The same ψ̃ feeds cos ψ̃ in u_cmd and the ψ_turn rule (5.4).
+
 Signs follow `mix()`: steer > 0 and spin > 0 both turn the boat
 counter-clockwise (left), **as long as the thrust is forward** (section 10.2).
 
@@ -270,9 +284,9 @@ waypoint_follower:
     start_delay: 3.0            # s after the first odometry message
     max_run_time: 180.0         # s
     odom_timeout: 0.5           # s
-    # route (W1..W9; W0 is wherever the boat starts)
-    waypoints_x: [17.0, 22.0, 25.0, 25.5, 23.0, 20.0, 17.0, 15.0, -1.0]
-    waypoints_y: [0.0, 2.5, 1.0, -2.0, -4.0, -2.5, -0.5, 0.0, 0.0]
+    # route W0..W9; W0 = the spawn, fixed (10.15 a)
+    waypoints_x: [0.0, 17.0, 22.0, 25.0, 25.5, 23.0, 20.0, 17.0, 15.0, -1.0]
+    waypoints_y: [0.0, 0.0, 2.5, 1.0, -2.0, -4.0, -2.5, -0.5, 0.0, 0.0]
     speeds:      [1.0, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.8, 1.0]
     switch_distance: 1.5        # m, R_switch
     lookahead: 3.0              # m, Delta
@@ -280,9 +294,12 @@ waypoint_follower:
     heading_kp: 1.2             # rad steer per rad error (K_psi)
     heading_kd: 0.6             # rad steer per rad/s yaw rate (K_omega)
     max_steer: 0.8              # rad
-    spin_threshold: 0.8         # rad (~45 deg), psi_spin
-    spin_kp: 1.0                # 1/rad, K_spin (ramp, 10.3 b): spin_max at 1.2 rad
+    spin_threshold: 0.3         # rad, psi_spin (10.14 a)
+    spin_kp: 2.0                # 1/rad, K_spin (ramp, 10.3 b; 10.14 a): spin_max at 0.5 rad
     spin_max: 0.4
+    spin_small_kp: 2.0          # 1/rad, K_s, proportional spin (10.16 a) [MEASURED
+                                # in the M1.2f model sweep: 1.0-3.0 pass, 2.0 the middle]
+    course_min_speed: 0.3       # m/s, u_min, low-speed guard of the course (M1.2f) [EST]
     # speed control
     speed_kp: 0.3               # throttle per m/s error
     speed_ki: 0.05
@@ -653,8 +670,155 @@ logic test (10.4, 10.5). One commit each.
      What does the clearance check say, and why can the two disagree?
   3. Why is the band uneven for a gate with an A2 red and a Sur-Mark green buoy?
 
+#### M1.2e Brief (agreed 2026-10-19)
+- **Goal:** a gtest where a 3-DOF model boat, driven by the full M1 control
+  chain at 20 Hz, follows the Task 1 route and passes both gates outbound and
+  inbound.
+- **Decisions:** 10.4 (stop and report on failure), 10.5 (3-DOF model);
+  runs: nominal + 4 start offsets (±0.5 m sideways, ±0.3 rad heading); boat
+  numbers read from `asv.yaml` + `asv_report.json` (yaml-cpp); the generator
+  writes the whole-boat inertia (all 2026-10-19).
+- **Why:** catches wiring, sign and logic errors before M1.3 and Gazebo.
+  Experimental Scenarios; App. C.
+- **New ideas:** 3-DOF manoeuvring model (no added mass: 0 in `model.sdf`);
+  zero-order hold; explicit Euler in 4 ms sub-steps (glossary).
+- **Files:** ⚠ `tools/asvgen/analysis.py` (`inertia_cog` in the report),
+  ⚠ `tests/test_asvgen.py` (+1), ⚠ `docs/HOW_IT_WORKS.md`, ⚠ `package.xml`
+  (`<test_depend>yaml_cpp_vendor</test_depend>`), regenerated
+  `config/asv_report.*`; `test/boat_model.hpp`, `test/test_closed_loop.cpp`,
+  `CMakeLists.txt`; this plan, `docs/master_plan.md`, `docs/glossary.md`,
+  `CLAUDE.md`.
+- **How it works:** every 50 ms Route → LOS → HeadingControl →
+  SpeedControl (dt 0.05) → mix() → model, 4 ms sub-steps with the commands
+  held → GateMonitor; end at FINISHED (+2 s, thrust 0) or 180 s. Pod angle
+  rate ≤ 2 rad/s. T = T_L + T_R; X = T cos δ, Y = T sin δ,
+  N = x_p T sin δ + 0.33 (T_R − T_L) cos δ; m(u̇ − vω) = X − (X_u + X_uu|u|)u;
+  m(v̇ + uω) = Y − (Y_v + Y_vv|v|)v; I_z ω̇ = N − (N_r + N_rr|ω|)ω;
+  ẋ = u cos ψ − v sin ψ, ẏ = u sin ψ + v cos ψ, ψ̇ = ω. About base_link (CoG
+  1.8 cm aft, ignored [EST]).
+- **Check:** model vs Step 1 within 10 % (1.00 m/s at 10 N; +0.15 rad/s for
+  pods −0.4 rad at 20 N; +0.18 rad/s for ±10 N); 5 runs: gate1 OUT, gate2 OUT,
+  gate2 IN, gate1 IN, all PASS, no collision, FINISHED < 180 s; report min
+  clearance, max |e|, run time, max |v|. Other gtests unchanged; Python 29.
+- **Can't check:** Gazebo effects (waves, buoyancy, roll/pitch, propeller
+  spin-up); M1.3/M1.5 do that.
+- **Committed together with M1.2f** (decided 2026-10-19, below).
+
+#### M1.2f Brief (agreed 2026-10-19)
+- **Goal:** heading control on the course χ instead of the heading ψ
+  (10.13 a); spin assist from ψ_spin = 0.3 rad with K_spin = 2.0 (10.14 a);
+  W0 fixed at the spawn (0, 0) in the parameter file (10.15 a).
+- **Decisions (2026-10-19):** S1 low-speed guard: a ramp,
+  χ = ψ + atan2(v, max(u, u_min)), u_min = 0.3 m/s [EST]; S2: a free
+  function `course_angle()`, `HeadingControl` unchanged, the caller passes χ;
+  S3: one combined commit for M1.2e and M1.2f (not the recommended option; the
+  commit has both `M1.2e:` and `M1.2f:` lines so both greps find it).
+- **Why:** M1.2e fails without these (crabbing on straights, weak corners,
+  route shifted by off-spawn starts). Experimental Scenarios; App. C.
+- **New ideas:** course χ; course-based LOS (Fossen) (glossary). The
+  sideslip angle gets no symbol (β is already the buoy bearing).
+- **Files:** `include/asv_sim/control.hpp`, `src/control.cpp`,
+  `test/test_control.cpp`, `include/asv_sim/guidance.hpp` (W0 comment),
+  `test/test_closed_loop.cpp`; this plan (§2, §5.3, §6, Step 3),
+  `docs/master_plan.md`, `docs/glossary.md`, `CLAUDE.md`.
+- **How it works:** χ = ψ + atan2(v, max(u, u_min)); ψ̃ = wrap(ψ_d − χ);
+  steer = clamp(K_ψ ψ̃ − K_ω ω, ±max_steer) (D term stays on ω); the same ψ̃
+  feeds spin, cos ψ̃ in u_cmd and the ψ_turn rule. v = odom twist.linear.y.
+- **Check:** new `course_angle` gtests; the other gtests unchanged; M1.2e's
+  5 closed-loop runs all PASS; on failure stop and report (10.4).
+- **Can't check:** Gazebo behaviour (M1.3/M1.5).
+- **Extended 2026-10-19 (10.16 b, K_s = 2.0):** proportional spin
+  K_s ψ̃ in `HeadingControl` (new field `spin_small_kp`), because the
+  offset runs still failed; tried first in a scratch copy (10.16).
+
+#### M1.2e Report (2026-10-19)
+- **What changed:**
+  - `test/boat_model.hpp`: the 3-DOF model (surge, sway, yaw), pod rate
+    limit, zero-order hold, explicit Euler; `load_boat_params()` reads
+    `asv.yaml` and `asv_report.json` with yaml-cpp.
+  - `test/test_closed_loop.cpp`: 5 model tests against the equations and
+    Step 1; the Task 1 closed loop from the spawn and from 4 start offsets.
+  - `CMakeLists.txt`, `package.xml`: the gtest and its
+    `<test_depend>yaml_cpp_vendor</test_depend>`.
+  - `tools/asvgen/analysis.py`: `mass.inertia_cog` (whole boat incl. pods)
+    in the report; `tests/test_asvgen.py`: +1 test; `HOW_IT_WORKS.md`.
+  - `config/asv.yaml`: yVV 4 → 58 (10.12); regenerated `model.sdf`,
+    `asv_report.*`, `asv_bridge.yaml`, `asv_frames.yaml` (fingerprint only).
+- **How it was checked:** `colcon test --packages-select asv_sim` →
+  `colcon test-result`: 84 tests, 0 errors, 0 failures (78 gtests + 6 CTest
+  wrappers); `test_closed_loop` 7/7. `python3 -m unittest discover -s
+  tests`: 29 tests OK. Gazebo vs model after yVV = 58 (20 N, pods −0.4 rad):
+  u = 1.396, v = −0.414, ω = 0.1499 [MEASURED Gazebo] vs 1.397, −0.413,
+  0.1484 [MEASURED model]. Closed loop (with M1.2f): every run gate1 OUT,
+  gate2 OUT, gate2 IN, gate1 IN, all PASS, no collision:
+
+  | Run | finish | max \|e\| | max \|v\| | min clearance | gate offsets (m) |
+  |---|---|---|---|---|---|
+  | spawn | 64.55 s | 1.646 m | 0.253 m/s | 0.684 m | 0.000, 0.000, −0.155, +0.024 |
+  | y +0.5 | 64.65 s | 1.640 m | 0.258 m/s | 0.683 m | +0.052, +0.074, −0.155, +0.023 |
+  | y −0.5 | 64.50 s | 1.641 m | 0.252 m/s | 0.683 m | −0.052, −0.074, −0.155, +0.023 |
+  | ψ +0.3 | 64.75 s | 1.648 m | 0.347 m/s | 0.683 m | −0.050, +0.085, −0.155, +0.023 |
+  | ψ −0.3 | 64.60 s | 1.640 m | 0.347 m/s | 0.683 m | +0.050, −0.085, −0.154, +0.023 |
+
+  Model vs Step 1: 10 N → u within 1e-4 of the drag root (1.00 m/s, Step 1
+  1.00); pods −0.4 rad at 20 N → ω = 0.1484 rad/s (Step 1 0.15);
+  ±10 N → ω within 1e-4 of the yaw balance 0.1755 rad/s (Step 1 0.18).
+- **Differs from the brief:** sub-steps are 2.5 ms (20 per control step),
+  not 4 ms; the brief's first run failed and led to 10.12–10.16.
+- **What could not be checked:** waves, buoyancy, roll/pitch, propeller
+  spin-up and reverse-thrust behaviour in Gazebo (M1.3/M1.5). The max |e| of
+  1.65 m is in the teardrop turn, not near a gate.
+- **How to read the code:** `test/boat_model.hpp` `BoatModel::step()` has
+  the equations of the brief in its comment; `test_closed_loop.cpp`
+  `run_task1()` is the 20 Hz loop (Route → LOS → course → HeadingControl,
+  SpeedControl → mix() → model → GateMonitor).
+- **Numbers for the thesis:** m = 18.191 kg, I_z = 3.68555 kg m² (whole
+  boat; base_link alone 2.80801) [REPO `asv_report.json`]; yVV = 58
+  N/(m/s)² [EST, C_d 0.8]; the Gazebo/model check above [MEASURED]; the
+  closed-loop table [MEASURED, model].
+- **Check your understanding:**
+  1. Why does the model leave out added mass, and what would change in
+     Gazebo if `model.sdf` had it?
+  2. Why can this model check the controller's logic but not be used inside
+     the filter?
+  3. Why did the boat slide outward in every turn with yVV = 4?
+
+#### M1.2f Report (2026-10-19)
+- **What changed:**
+  - `include/asv_sim/control.hpp`, `src/control.cpp`: `course_angle()`
+    (χ with the low-speed guard); `HeadingGains::spin_small_kp` (K_s) and
+    the spin law with the proportional part.
+  - `test/test_control.cpp`: +6 `CourseAngle` tests, +3 proportional-spin
+    tests, +1 invalid-K_s check; the M1.2c spin tests keep K_s = 0.
+  - `include/asv_sim/guidance.hpp`: W0 comment (10.15 a).
+  - `test/test_closed_loop.cpp`: W0 = (0, 0), χ fed to `HeadingControl`,
+    ψ_spin 0.3, K_spin 2.0, K_s 2.0, u_min 0.3.
+  - This plan: §2, §5.3 (implemented form), §6, Step 3, 10.16;
+    `docs/glossary.md`: χ, u_min, K_s, course, non-minimum-phase, 3-DOF
+    model, zero-order hold, explicit Euler.
+- **How it was checked:** `test_control` 27/27; the M1.2e table above.
+  The trials (χ̇ damping, K_s sweep) ran in a scratch copy in
+  `ws/data/scratch/` (not committed); results in 10.16.
+- **What could not be checked:** reverse thrust: one thruster is in reverse
+  in about 63 % of the control steps, worst −23 N [MEASURED, model]; Gazebo
+  may give less reverse thrust, and reverse thrust flips the pod steering
+  (10.2). Check in M1.3/M1.5. The dip at K_s = 0.5 (2 fails, while 0.25
+  passes) is not explained.
+- **How to read the code:** `course_angle()` = the χ equation of §5.3;
+  `HeadingControl::compute()` = the steer and spin equations of §5.3
+  (K_s = `spin_small_kp`, K_spin = `spin_kp`, ψ_spin = `spin_threshold`).
+- **Numbers for the thesis:** ψ_spin = 0.3 rad, K_spin = 2.0 /rad
+  [EST, 10.14 a]; K_s = 2.0 /rad [MEASURED model sweep, 10.16]; u_min =
+  0.3 m/s [EST]; the sweep table in 10.16 [MEASURED, model].
+- **Check your understanding:**
+  1. Why does steering on χ instead of ψ remove crabbing on a straight leg?
+  2. Why does differential thrust damp the swing that the pods cause?
+  3. What does the max(u, u_min) do when the boat drifts sideways while
+     almost stopped?
+
 ### Step 3 — The node (`src/waypoint_follower.cpp`)  (M1.3)
-Parameters (section 6), odometry subscription, 20 Hz ROS-clock timer, the
+Parameters (section 6), odometry subscription (u = twist.linear.x and
+v = twist.linear.y, body frame, for the course χ: 5.3), 20 Hz ROS-clock timer, the
 state machine (5.7), publishing commands + the four autonomy topics (`path`
 with transient-local QoS so late viewers still get it). ⚠ New `<depend>`
 entries `rclcpp`, `std_msgs`, `nav_msgs`, `geometry_msgs` (ask first). Needs
@@ -774,12 +938,20 @@ decides.
    about 7 m if the thrust stays at the feedforward value (the boat then slows
    to about 0.47 m/s). So spin assist is part of every loop corner (risk
    table).
+   **decided 2026-10-19:** if the closed-loop model test (M1.2e) fails the
+   teardrop with the §6 starting gains, stop and report; gain or route changes
+   are a separate decision (no reason given).
 5. **Calibrated test model for Step 2.** Instead of "yaw rate ∝ steer·u +
    spin" (an arbitrary gain that can pass with any controller), use the
    steady-state yaw balance $n_R\,\omega + n_{RR}\,\omega|\omega|$ = yaw
    moment of point 2, with $n_R = n_{RR} = 32$ [REPO `asv.yaml`]. It reproduces
    Step 1: 0.148 rad/s for the pod test (measured 0.15) and 0.175 rad/s for
    the differential test (measured 0.18). Optionally a first-order lag on ω.
+   **decided 2026-10-19:** a 3-DOF model (surge, sway, yaw) with Gazebo's
+   own mass, inertia and drag, read from `asv.yaml` and `asv_report.json`
+   (yaml-cpp, new `<test_depend>`); the generator writes the whole-boat inertia
+   into the report. No reason given. Correction found while planning: the
+   2.81 kg m² in `model.sdf` is base_link alone; the pods are separate links.
 6. **Lookahead vs. short segments.** Δ = 3 m is about as long as the loop
    segments (2.06–3.61 m; only W7–W8 is shorter than 3 m), and with R_switch = 1.5 m each loop
    segment is followed for only about 0.6–2 m. At a switch the target point
@@ -822,3 +994,51 @@ decides.
     buoys, typed into `task1_route.yaml`. **decided 2026-10-19:** b (no
     reason given). These buoys have other radii (A0 0.1015 m, A2 0.184 m
     [REPO `models/rb26_*/model.sdf`]), so every buoy has its own radius.
+12. **Sideways drag (found 2026-10-19, M1.2e).** The closed-loop test
+    failed: in every turn the boat slid outward (|e| up to 7–10 m). The
+    3-DOF model and Gazebo agree: 20 N, pods −0.4 rad → u = 1.282, v = −1.252,
+    ω = 0.1498 in Gazebo [MEASURED] vs 1.285, −1.250, 0.1484 in the model.
+    Cause: `yVV` = 4 (copied from VRX roboboat01, uncalibrated) is no larger
+    than the surge drag. Options: a) a physically based sway drag in
+    `asv.yaml`; b) keep it and steer more with spin; c) both.
+    **decided 2026-10-19:** a, "If the current number is only an estimate,
+    then a is the clear choice"; yVV = ½ ρ C_d A_lat = ½·1000·0.8·0.146
+    ≈ 58 N/(m/s)² (A_lat = 2 hulls × 1.60 m × draft 0.0455 m [REPO];
+    C_d = 0.8 [EST, range 0.6–1.0, literature value not yet checked]).
+    yV = 4, nR = nRR = 32 and the surge drag are unchanged.
+    Check after regenerating: Gazebo u = 1.396, v = −0.414, ω = 0.1499
+    [MEASURED] vs model 1.397, −0.413, 0.1484.
+13. **Crabbing on straight legs (found 2026-10-19, M1.2e).** A small pod
+    angle turns the nose towards the path but pushes the boat sideways away
+    from it; the heading error stays small while |e| grows (0.42 m from a
+    0.5 m start). Options: a) course feedback, χ = ψ + atan2(v, u) instead of
+    ψ in the heading controller (Fossen, course-based LOS); b) integral LOS;
+    c) nothing, tune in M1.5. **decided 2026-10-19:** a (no reason given).
+14. **Too little turning force in corners (found 2026-10-19, M1.2e; the weak
+    spot of M1.2c).** For ψ_turn < |ψ̃| < ψ_spin the throttle drops to about
+    0.04 and spin is still off (ω ≈ 0.05 rad/s). Options: a) ψ_spin = 0.3 rad
+    (= ψ_turn) and K_spin = 2.0 [EST]; b) a minimum throttle while turning;
+    c) leave it to M1.5. **decided 2026-10-19:** a (no reason given).
+15. **W0 for off-spawn starts (found 2026-10-19, M1.2e).** With W0 = the
+    start point, a start 0.5 m to the side puts the route itself 0.35 m off
+    the gate 1 centre. Options: a) W0 is the fixed spawn (0, 0), in the
+    parameter file; b) W0 = the start point. **decided 2026-10-19:** a (no
+    reason given). M1.2f builds 10.13–10.15; M1.2e then runs again.
+16. **Cross-track swing after an offset start (found 2026-10-19, M1.2f).**
+    With 10.13–10.15 built, the spawn run passed but the four offset runs
+    crossed gate 2 outbound at ±0.58 m (FAIL_CLOSE, band ±0.355 m): e swung
+    +0.65 → −0.58 → +0.59 m with a period of about 11 s [MEASURED, model].
+    Cause: the aft pods first push the boat sideways the wrong way
+    (non-minimum-phase). A sweep of Δ (3/4/5 m), K_ω (0.6/1.2) and K_ψ
+    (0.8/1.2) found nothing better; with ψ instead of χ every run failed and
+    collided. Options: a) D term on the course rate χ̇; b) proportional spin
+    K_s ψ̃ at every error size; c) smaller start offsets (weakens the test);
+    d) leave it to M1.5. a was tried in a scratch copy and was worse (9–18
+    of 20 gate events failed). b: K_s = 0 / 0.25 / 0.5 / 1.0 / 1.5 / 2.0 / 3.0
+    gave 4 / 0 / 2 / 0 / 0 / 0 / 0 failed events, worst offset 0.583 / 0.353 /
+    0.374 / 0.283 / 0.196 / 0.155 / 0.171 m [MEASURED, model]. **decided
+    2026-10-19:** b with K_s = 2.0 ("a, K_s = 2.0, build it", picking
+    K_s = 2.0 from the list 2.0 / 1.0 / none; no reason given). Risk: one thruster
+    runs in reverse in about 63 % of the control steps (39 % before), worst
+    about −23 N; in Gazebo reverse thrust may be weaker and flips the pod
+    steering (10.2) — check in M1.3/M1.5.

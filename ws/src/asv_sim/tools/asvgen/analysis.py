@@ -103,6 +103,9 @@ def mass_and_hydro(boat):
         groups[i.group] = groups.get(i.group, 0.0) + i.mass
     m = {'total_kg': round(t.mass, 3), 'total_lbs': round(t.mass * LBS, 1),
          'cog': [round(c, 4) for c in t.cog],
+         # whole boat incl. pods, about the cog, boat axes (kg m^2); model.sdf
+         # splits it into base_link and the pod links
+         'inertia_cog': [[round(v, 5) for v in row] for row in t.tensor],
          'groups_kg': {k: round(v, 3) for k, v in groups.items()},
          'items': [{'name': i.name, 'group': i.group, 'kg': i.mass, 'xyz': [round(c, 3) for c in i.xyz]}
                    for i in boat.mass_items + boat.pod_items]}

@@ -54,9 +54,10 @@ proposes, Marcell decides, and then this table is updated.
 | R_switch | switch distance: go to the next segment when s ≥ ℓ_i − R_switch | m | proposed (subscripted, so not the process noise R) |
 | p_LOS | line-of-sight target point: Δ ahead of the boat's projection, measured along the route | m | proposed |
 | d_end | distance left to the last waypoint, along the route: (ℓ_i − s) + Σ_{j>i} ℓ_j | m | proposed |
-| ψ_d, ψ̃ | desired heading and heading error ψ̃ = wrap(ψ_d − ψ) | rad | proposed |
+| ψ_d, ψ̃ | desired heading and heading error ψ̃ = wrap(ψ_d − χ); with course feedback (10.13 a) the error is taken against the course χ, not ψ | rad | proposed |
+| χ, u_min | course: direction of the boat's velocity, χ = wrap(ψ + atan2(v, max(u, u_min))); u_min is the low-speed guard | rad; m/s | proposed (the sideslip atan2(v, u) has no symbol: β is the buoy bearing) |
 | K_ψ, K_ω | heading-control gains (on heading error and on yaw rate); steer is in rad | none, s | proposed (replaces K_r) |
-| ψ_spin, K_spin | spin-assist threshold and gain: spin = sign(ψ̃)·clamp(K_spin(\|ψ̃\| − ψ_spin), 0, spin_max) | rad; 1/rad | proposed |
+| ψ_spin, K_spin, K_s | spin-assist threshold, ramp gain and proportional gain: spin = clamp(K_s ψ̃ + sign(ψ̃)·clamp(K_spin(\|ψ̃\| − ψ_spin), 0, spin_max), ±spin_max) (10.3 b, 10.16 a) | rad; 1/rad; 1/rad | proposed |
 | ψ_turn | turn threshold: while \|ψ̃\| > ψ_turn the throttle may not be negative (decision 10.2 c) | rad | proposed |
 | u_cmd, u_ref | commanded forward speed and the segment's speed: u_cmd = min(u_ref·max(0, cos ψ̃), K_stop d_end) | m/s | proposed |
 | K_stop | gain that slows the boat near the end, u_cmd ≤ K_stop d_end | 1/s | proposed |
@@ -278,6 +279,9 @@ use (thesis eq. 3.3).
 from the path the boat heads back to it; on the path it follows it. Here
 the lookahead is measured along the route, so near a corner the target point
 already lies on the next segment (decision 10.6 a in `milestone1_plan.md`).
+*Course-based LOS* (Fossen): the LOS direction ψ_d is compared with the
+course χ (where the boat moves), not the heading ψ (where the bow points), so
+sideways drift is corrected too (decision 10.13 a).
 
 **Matched / mismatched.** *Matched*: the filter's noise settings equal the noise
 the corruptor actually adds (and the corruptor adds nothing the filter does not
@@ -365,6 +369,8 @@ building the map at the same time. [slam-problem-notes]
 
 **Spin assist.** Turning the boat with opposite thrust on the two thrusters
 (left back, right forward turns left), used when the pods alone turn too slowly.
+From M1.2f it is also used for small errors (K_s): differential thrust turns
+the boat without the sideways push of the aft pods (10.16 a).
 
 **Static / floating model.** In Gazebo a *static* model never moves. Our buoys
 are currently *floating*: they bob on the waves and can be pushed. Neither is a
@@ -372,6 +378,25 @@ moored buoy (one that moves in a small circle around its anchor).
 
 **Surge, sway, yaw rate (u, v, ω).** Forward speed, sideways speed and turn rate,
 all in the boat frame. [vehicle-motion-model-notes]
+
+**3-DOF manoeuvring model.** A boat model with three degrees of freedom: surge,
+sway and yaw (no heave, roll, pitch). Newton's law in each with the thrust and
+the drag; used in the closed-loop test (M1.2e) in place of Gazebo. No added
+mass, because `model.sdf` has none.
+
+**Course, crabbing.** *Course* χ: the direction the boat actually moves.
+It differs from the heading ψ when the boat also moves sideways (v ≠ 0).
+*Crabbing*: the bow points one way while the boat drifts another.
+
+**Non-minimum-phase response.** The first reaction goes the wrong way. Our
+pods sit behind the centre of gravity: to turn right they push the stern left,
+so the whole boat first slides left before it turns (found in M1.2f).
+
+**Zero-order hold.** A command is held constant until the next one arrives
+(here for the 50 ms between control steps).
+
+**Explicit Euler.** The simplest way to step a differential equation:
+x(t + h) = x(t) + h·ẋ(t). Accurate when the step h is small (here 2.5 ms).
 
 **Sweep.** Running the same experiment over a list of settings (e.g. noise levels)
 and collecting the results in one table.

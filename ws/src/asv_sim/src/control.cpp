@@ -17,12 +17,22 @@ bool non_negative(double x) {return x >= 0.0;}
 
 }  // namespace
 
+double course_angle(double heading, double u, double v, double min_speed)
+{
+  if (!non_negative(min_speed)) {
+    throw std::invalid_argument("course_angle: min_speed must be >= 0");
+  }
+  // max() also covers reverse (u < 0): the course stays within +-90 deg of
+  // the heading instead of flipping by pi.
+  return wrap_angle(heading + std::atan2(v, std::max(u, min_speed)));
+}
+
 HeadingControl::HeadingControl(const HeadingGains & gains)
 : gains_(gains)
 {
   if (!non_negative(gains_.heading_kp) || !non_negative(gains_.heading_kd) ||
     !non_negative(gains_.spin_threshold) || !non_negative(gains_.spin_kp) ||
-    !non_negative(gains_.spin_max))
+    !non_negative(gains_.spin_max) || !non_negative(gains_.spin_small_kp))
   {
     throw std::invalid_argument("HeadingControl: gains and limits must be >= 0");
   }
@@ -44,10 +54,13 @@ HeadingCommand HeadingControl::compute(
     gains_.heading_kp * cmd.heading_error - gains_.heading_kd * yaw_rate,
     -gains_.max_steer, gains_.max_steer);
 
-  // Spin assist, a ramp that starts at zero at psi_spin (10.3 b).
+  // Spin: a ramp that starts at zero at psi_spin (10.3 b), plus a
+  // proportional part at every error size (10.16 a); the sum is limited.
   const double excess = std::abs(cmd.heading_error) - gains_.spin_threshold;
-  const double magnitude = std::clamp(gains_.spin_kp * excess, 0.0, gains_.spin_max);
-  cmd.spin = std::copysign(magnitude, cmd.heading_error);
+  const double ramp = std::clamp(gains_.spin_kp * excess, 0.0, gains_.spin_max);
+  cmd.spin = std::clamp(
+    gains_.spin_small_kp * cmd.heading_error + std::copysign(ramp, cmd.heading_error),
+    -gains_.spin_max, gains_.spin_max);
   return cmd;
 }
 

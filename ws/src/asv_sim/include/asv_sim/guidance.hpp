@@ -18,7 +18,7 @@ struct Point2
 };
 
 // The route W_0 ... W_{n_w} as a polyline; segment i runs from W_i to
-// W_{i+1}. W_0 is where the boat starts (the node adds it).
+// W_{i+1}. W_0 is the spawn point, from the parameter file (10.15 a).
 class Route
 {
 public:

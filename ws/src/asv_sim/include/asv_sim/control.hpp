@@ -1,11 +1,24 @@
 // Heading and speed control for the Milestone 1 waypoint follower: turn the
 // desired heading and speed into the (throttle, steer, spin) that mix() takes.
 // ROS-free. Spec: milestone1_plan.md sections 5.3 and 5.4, decisions 10.2 c
-// and 10.3 b (2026-10-18). Symbols as in docs/glossary.md.
+// and 10.3 b (2026-10-18); course feedback 10.13 a and proportional spin
+// 10.16 a (2026-10-19, M1.2f).
+// Symbols as in docs/glossary.md.
 #pragma once
 
 namespace asv_sim
 {
+
+// Course chi: the direction the boat moves (milestone1_plan.md 5.3,
+// decision 10.13 a, course-based LOS after Fossen). heading psi (rad, world
+// frame); u, v: forward and sideways speed (m/s, body frame, v > 0 = to the
+// left); min_speed u_min (m/s, >= 0):
+//   chi = wrap(psi + atan2(v, max(u, u_min)))
+// The max() is the low-speed guard (M1.2f S1): near u = 0 the sideslip
+// atan2(v, u) is meaningless and could swing to +-90 deg. Pass chi instead of
+// psi to HeadingControl::compute(). Throws std::invalid_argument for
+// min_speed < 0 or NaN.
+double course_angle(double heading, double u, double v, double min_speed);
 
 // Gains of HeadingControl. Starting values in config/task1_route.yaml
 // (milestone1_plan.md section 6), tuned in M1.5.
@@ -17,6 +30,7 @@ struct HeadingGains
   double spin_threshold;  // psi_spin, rad, spin assist starts above it, >= 0
   double spin_kp;         // K_spin, spin per rad of error above psi_spin, >= 0
   double spin_max;        // spin limit (fraction of max_thrust), >= 0
+  double spin_small_kp;   // K_s, spin per rad of error at any size, >= 0 (10.16 a)
 };
 
 struct HeadingCommand
@@ -27,7 +41,8 @@ struct HeadingCommand
 };
 
 // PD heading control with the derivative on the measured yaw rate, plus spin
-// assist for large errors.
+// (differential thrust): proportional at every error size (10.16 a), with a
+// stronger ramp for large errors.
 class HeadingControl
 {
 public:
@@ -38,8 +53,12 @@ public:
   // (rad/s, body frame, > 0 counter-clockwise).
   //   psi~  = wrap(psi_d - psi)
   //   steer = clamp(K_psi psi~ - K_omega omega, +-max_steer)          (5.3)
-  //   spin  = sign(psi~) clamp(K_spin (|psi~| - psi_spin), 0, spin_max)
-  //           (10.3 b: a ramp from the threshold, so spin has no jump)
+  //   spin  = clamp(K_s psi~
+  //                 + sign(psi~) clamp(K_spin (|psi~| - psi_spin), 0, spin_max),
+  //                 +-spin_max)
+  //   (10.3 b: the ramp starts at the threshold, so spin has no jump;
+  //   10.16 a: K_s psi~ turns the boat without the sideways push of the aft
+  //   pods, which damps the cross-track swing after an offset start)
   // Stateless.
   HeadingCommand compute(double desired_heading, double heading, double yaw_rate) const;
 

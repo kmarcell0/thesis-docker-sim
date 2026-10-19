@@ -188,11 +188,11 @@ D11 message content) is raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M1.2d): 28 Python tests, run with `unittest`; `colcon test`
-  for `asv_sim` runs 62 gtests (`test_mix` 9, `test_angles` 6,
-  `test_guidance` 14, `test_control` 18, `test_gate_monitor` 15;
-  `colcon test-result` counts 67, the extra five are CTest's wrappers, one per
-  gtest binary).
+  Current baseline (M1.2f): 29 Python tests, run with `unittest`; `colcon test`
+  for `asv_sim` runs 78 gtests (`test_mix` 9, `test_angles` 6,
+  `test_guidance` 14, `test_control` 27, `test_gate_monitor` 15,
+  `test_closed_loop` 7; `colcon test-result` counts 84, the extra six are
+  CTest's wrappers, one per gtest binary).
   Report both numbers after every step.
 - **Python 3** for tools, launch files and offline analysis.
 - **Frames**: world = ENU (x east, y north, z up), boat = base_link (x forward,
@@ -292,18 +292,25 @@ use_sim_time:=true`); you can't run or test the key input.
 ## Known state / caveats
 Update this section in the same commit as the step that changes it.
 
-- **C++ so far (M1.2d):** the library `asv_sim_guidance` holds `mix()`
+- **C++ so far (M1.2f):** the library `asv_sim_guidance` holds `mix()`
   (`mix.hpp`), `wrap_angle()` and `yaw_from_quaternion()` (`angles.hpp`),
   `Route` and `LosGuidance` (`guidance.hpp`), `HeadingControl` and
-  `SpeedControl` (`control.hpp`), and `GateMonitor` (`gate_monitor.hpp`), all
-  in `include/asv_sim/` with sources in `src/`; gtests `test_mix`,
-  `test_angles`, `test_guidance`, `test_control`, `test_gate_monitor`.
+  `SpeedControl` and `course_angle()` (`control.hpp`), and `GateMonitor`
+  (`gate_monitor.hpp`), all in `include/asv_sim/` with sources in `src/`;
+  gtests `test_mix`, `test_angles`, `test_guidance`, `test_control`,
+  `test_gate_monitor`, `test_closed_loop` (Task 1 on a test-only 3-DOF
+  model, `test/boat_model.hpp`, which reads `asv.yaml` and
+  `asv_report.json` with yaml-cpp).
   No C++ nodes yet; the teleop that older docs mention was never written.
   `mix()` takes throttle and spin as fractions of `max_thrust` and keeps the
   left/right difference on saturation (decision 10.1, 2026-10-18). The LOS
   lookahead is carried along the route (10.6 a); d_end is measured along the
   route and FINISHED uses the switch rule on the last segment (10.7 a).
-  Spin assist ramps from ψ_spin (10.3 b); the throttle is ≥ 0 while
+  Heading control steers the course χ = ψ + atan2(v, max(u, 0.3)), not ψ
+  (10.13 a); spin = K_s ψ̃ plus a ramp from ψ_spin = 0.3 rad (10.3 b,
+  10.14 a, 10.16 b, K_s = 2.0); W0 is the fixed spawn (10.15 a). With this
+  spin one thruster is in reverse much of the time (model: 63 % of steps);
+  check reverse thrust in Gazebo (M1.3/M1.5). The throttle is ≥ 0 while
   |ψ̃| > ψ_turn = 0.3 rad (10.2 c); the speed PI has conditional-integration
   anti-windup. `GateMonitor` judges gate passes with the offset band of
   §5.6 (±0.3554 m for Task 1) and the clearance with the boat as a
@@ -320,6 +327,8 @@ Update this section in the same commit as the step that changes it.
   check): 10 N → 1.00 m/s, 20 N → 1.52 m/s, 40 N → 2.27 m/s, all <0.1%
   error. These are Gazebo's own numbers: fine for the controller's feedforward,
   but using them inside the filter would be an inverse crime.
+  Sway drag yVV = 58 N/(m/s)² since M1.2e (10.12; was 4 from VRX, the boat
+  slid sideways); the 3-DOF test model matches Gazebo within 1 % on a pod turn.
 - Steering sign and differential thrust both confirmed (Step 1): negative pod
   angle → positive yaw rate (left turn), left−/right+ thrust → left turn.
 - Simulation time (M0.2): `sim.launch.py` sets `use_sim_time` for all its nodes;
