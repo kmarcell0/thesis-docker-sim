@@ -1,11 +1,12 @@
 // Closed-loop logic test (M1.2e): the full Milestone 1 control chain
 // (Route -> LosGuidance -> HeadingControl, SpeedControl -> mix()) drives the
 // 3-DOF boat model of boat_model.hpp along the Task 1 route, and GateMonitor
-// judges the run. No Gazebo, no ROS.
+// judges the run. No Gazebo, no ROS. Since M1.3 the chain runs through
+// asv_sim::Follower, the same code as the waypoint_follower node (S2 a).
 // Boat values: config/asv.yaml and config/asv_report.json [REPO], read at test
 // time. Route, gains and buoys: milestone1_plan.md sections 2 and 6 [EST
-// starting gains, REPO geometry], typed in here until task1_route.yaml exists
-// (M1.3).
+// starting gains, REPO geometry], the same values as config/task1_route.yaml
+// (typed in here: the test does not read the ROS parameter file).
 #include <gtest/gtest.h>
 
 #include <algorithm>
@@ -14,10 +15,7 @@
 #include <string>
 #include <vector>
 
-#include "asv_sim/control.hpp"
-#include "asv_sim/gate_monitor.hpp"
-#include "asv_sim/guidance.hpp"
-#include "asv_sim/mix.hpp"
+#include "asv_sim/follower.hpp"
 #include "boat_model.hpp"
 
 namespace
@@ -128,23 +126,24 @@ struct RunResult
 RunResult run_task1(const BoatState & start)
 {
   const auto & bp = params();
+  asv_sim::FollowerConfig c;
   // Route W0 (the spawn, fixed in the parameter file: 10.15 a) ... W9
   // (plan section 2).
-  std::vector<Point2> waypoints{{0.0, 0.0},
+  c.waypoints = {{0.0, 0.0},
     {17.0, 0.0}, {22.0, 2.5}, {25.0, 1.0}, {25.5, -2.0}, {23.0, -4.0},
     {20.0, -2.5}, {17.0, -0.5}, {15.0, 0.0}, {-1.0, 0.0}};
-  const std::vector<double> speeds{1.0, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.8, 1.0};
-  asv_sim::Route route(waypoints, 1.5);  // switch_distance
-  const asv_sim::LosGuidance los(3.0);   // lookahead
+  c.speeds = {1.0, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.8, 1.0};
+  c.switch_distance = 1.5;
+  c.lookahead = 3.0;
   // heading_kp, heading_kd, max_steer, spin_threshold, spin_kp, spin_max,
   // spin_small_kp (spin_threshold 0.3, spin_kp 2.0: 10.14 a; spin_small_kp
   // 2.0: 10.16 a)
-  const asv_sim::HeadingControl heading({1.2, 0.6, 0.8, 0.3, 2.0, 0.4, 2.0});
-  const double course_min_speed = 0.3;  // m/s, u_min (M1.2f S1) [EST]
+  c.heading = {1.2, 0.6, 0.8, 0.3, 2.0, 0.4, 2.0};
+  c.course_min_speed = 0.3;  // m/s, u_min (M1.2f S1) [EST]
   // drag, max_thrust (asv.yaml); speed_kp, speed_ki, stop_gain,
   // turn_threshold, min_throttle, max_throttle (plan section 6)
-  asv_sim::SpeedControl speed({bp.drag_u, bp.drag_uu, bp.limits.max_thrust,
-      0.3, 0.05, 0.5, 0.3, -0.3, 1.0});
+  c.speed = {bp.drag_u, bp.drag_uu, bp.limits.max_thrust, 0.3, 0.05, 0.5, 0.3, -0.3, 1.0};
+  c.limits = bp.limits;
 
   // Buoys (plan section 6) [REPO course and models/rb26_*/model.sdf].
   const double sm = 0.2286;
@@ -152,53 +151,49 @@ RunResult run_task1(const BoatState & start)
   const asv_sim::Buoy g1g{"gate1_green", {5.0, -1.524}, sm};
   const asv_sim::Buoy g2r{"gate2_red", {13.0, 1.524}, sm};
   const asv_sim::Buoy g2g{"gate2_green", {13.0, -1.524}, sm};
-  const std::vector<asv_sim::Buoy> others{
+  c.gates = {{"gate1", g1r, g1g}, {"gate2", g2r, g2g}};
+  c.other_buoys = {
     {"t2_ch1_red", {20.781, 6.0}, 0.1015}, {"t2_ch1_green", {23.219, 6.0}, 0.1015},
     {"t3_red", {30.0, -4.476}, 0.184}, {"t3_green", {30.0, -7.524}, 0.184}};
-  asv_sim::GateMonitor monitor({{"gate1", g1r, g1g}, {"gate2", g2r, g2g}}, others,
-    {bp.hull_length, bp.half_width}, 0.5, 2.0);  // gate_margin, gate_capture
+  c.footprint = {bp.hull_length, bp.half_width};
+  c.gate_margin = 0.5;
+  c.gate_capture = 2.0;
+  // The model boat needs no time to settle; the loop below ends at
+  // kMaxRunTime, so the follower's own time limit never fires here.
+  c.start_delay = 0.0;
+  c.max_run_time = kMaxRunTime;
+  c.odom_timeout = 0.5;
+  asv_sim::Follower follower(c);  // the node's code (M1.3, S2 a)
 
   BoatModel boat(bp, start);
   RunResult r;
   const double h = kControlDt / kSubSteps;
-  monitor.update({start.x, start.y}, start.psi);  // first call stores p
   double coast_left = kCoastTime;
   for (double t = 0.0; t < kMaxRunTime && coast_left > 0.0; t += kControlDt) {
     const auto & s = boat.state();
-    const Point2 p{s.x, s.y};
-    asv_sim::ThrusterCommand cmd{0.0, 0.0, 0.0, 0.0};
-    if (!r.finished) {
-      route.update(p);
-      if (route.finished()) {
+    // The model's state stands in for one odometry message stamped at t.
+    const auto out = follower.step(t, asv_sim::NavState{t, {s.x, s.y}, s.psi, s.u, s.v, s.omega});
+    r.events.insert(r.events.end(), out.events.begin(), out.events.end());
+    if (out.state == asv_sim::FollowerState::RUNNING) {
+      r.max_cross_track = std::max(r.max_cross_track, std::abs(out.cross_track));
+    }
+    if (out.state == asv_sim::FollowerState::FINISHED) {
+      if (!r.finished) {
         r.finished = true;
         r.time = t;
-      } else {
-        r.max_cross_track = std::max(r.max_cross_track, std::abs(route.cross_track()));
-        const auto target = los.compute(route, p);
-        // Course feedback (10.13 a): steer the direction of motion chi.
-        const double chi = asv_sim::course_angle(s.psi, s.u, s.v, course_min_speed);
-        const auto hc = heading.compute(target.desired_heading, chi, s.omega);
-        const double u_cmd = speed.commanded_speed(
-          speeds[route.segment()], hc.heading_error, route.remaining_distance());
-        const double throttle = speed.update(u_cmd, s.u, hc.heading_error, kControlDt);
-        cmd = asv_sim::mix(throttle, hc.steer, hc.spin, bp.limits);
       }
-    }
-    if (r.finished) {
       coast_left -= kControlDt;
     }
     for (int k = 0; k < kSubSteps; ++k) {
-      boat.step(cmd, h);
+      boat.step(out.command, h);
     }
     r.max_sway = std::max(r.max_sway, std::abs(boat.state().v));
-    const auto ev = monitor.update({boat.state().x, boat.state().y}, boat.state().psi);
-    r.events.insert(r.events.end(), ev.begin(), ev.end());
   }
   if (!r.finished) {
     r.time = kMaxRunTime;
   }
-  r.collision = monitor.collision();
-  r.closest = monitor.closest();
+  r.collision = follower.monitor().collision();
+  r.closest = follower.monitor().closest();
   return r;
 }
 

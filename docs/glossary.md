@@ -115,6 +115,13 @@ changes slowly over time (modelled as a Gauss-Markov process).
 own message system and ROS 2 topics. Its topic list is generated into
 `config/asv_bridge.yaml`.
 
+**Callback, executor (ROS 2).** A callback is a function the node hands to
+ROS, which calls it when something happens: a message arrives (subscription)
+or a timer fires. The executor is the loop (`rclcpp::spin`) that calls them,
+by default one at a time in one thread, so two callbacks never run at once
+and need no locking. The waypoint follower (M1.3) stores the latest odometry
+in one callback and computes the commands in a timer callback.
+
 **Centroid bias.** The lidar only sees the near side of a buoy, so the centre of
 its points lies closer to the boat than the buoy's real centre, by about π·r_b/4
 for a round buoy of radius r_b.
@@ -375,6 +382,11 @@ the boat without the sideways push of the aft pods (10.16 a).
 **Static / floating model.** In Gazebo a *static* model never moves. Our buoys
 are currently *floating*: they bob on the waves and can be pushed. Neither is a
 moored buoy (one that moves in a small circle around its anchor).
+
+**State machine.** A fixed set of states (e.g. WAITING, RUNNING, FINISHED,
+STOPPED) and the rules for moving between them. At any time the system is in
+exactly one state, which decides what it does. A *latched* state is one it
+never leaves (the follower's FINISHED and STOPPED, M1.3 S3 a).
 
 **Surge, sway, yaw rate (u, v, ω).** Forward speed, sideways speed and turn rate,
 all in the boat frame. [vehicle-motion-model-notes]

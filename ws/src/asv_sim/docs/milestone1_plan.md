@@ -77,6 +77,7 @@ others. The waypoints live in a parameter file, not in code (section 6).
  /asv/ground_truth/odom ──► waypoint_follower (C++ node) ──► /asv/thrusters/{left,right}/{thrust,pos}
  (optional M7.3: /asv/slam/odom)  │                               (to Gazebo via the bridge)
                                  │ uses, pure C++ / no ROS:
+                                 │   asv_sim::Follower       state machine (5.7), runs the chain below (M1.3)
                                  │   asv_sim::Route          route progression, cross-track error
                                  │   asv_sim::LosGuidance    desired heading (line of sight)
                                  │   asv_sim::HeadingControl steer + spin from heading error
@@ -89,7 +90,9 @@ others. The waypoints live in a parameter file, not in code (section 6).
 ```
 
 **All maths in plain C++ classes without ROS** (unit tested, reusable), and a
-**thin node** for ROS I/O. The node runs a fixed 20 Hz control loop on a
+**thin node** for ROS I/O. Since M1.3 one class, `Follower`
+(`follower.hpp`), holds the whole per-step logic; the node and the
+closed-loop test both drive it (S1 a, S2 a). The node runs a fixed 20 Hz control loop on a
 ROS-clock timer (`rclcpp::create_timer(this, get_clock(), ...)`, so it runs in
 simulation time; step M0.2 comes first) and always uses the latest odometry
 message.
@@ -829,6 +832,110 @@ M0.2 (simulation time) done first.
   values that the launch file normally passes, section 6; the brief says how),
   the status goes
   `WAITING` → `RUNNING 1/9` and the boat's x position increases.
+
+#### M1.3 Brief (agreed 2026-10-20)
+- **Goal:** C++ node `waypoint_follower`: reads ground truth, runs the M1.2
+  chain at 20 Hz in simulation time, commands the thrusters; plus
+  `config/task1_route.yaml` (values as §6).
+- **Decisions (2026-10-20):** S1 a: a ROS-free class `asv_sim::Follower`
+  (`follower.hpp`) holds Route, LOS, the controllers, GateMonitor and the
+  state machine; the node only converts messages. S2 a: `test_closed_loop`
+  drives the model through `Follower` (same 4 PASS events expected; stop and
+  report if more than late digits change). S3 a: STOPPED and FINISHED are
+  latched. ⚠ New `<depend>` rclcpp, std_msgs, nav_msgs, geometry_msgs: yes.
+- **Why:** closes the loop in Gazebo (M1.4 launch, M1.5 tuning, bags for
+  M2). Experimental Scenarios; App. C.
+- **New ideas:** ROS node callbacks (the odometry callback stores the latest
+  message, a ROS-clock timer does the work; one thread); state machine;
+  transient-local QoS for the path.
+- **Files:** ⚠ `package.xml`; `CMakeLists.txt`; new `include/asv_sim/follower.hpp`,
+  `src/follower.cpp`, `src/waypoint_follower.cpp`, `config/task1_route.yaml`,
+  `test/test_follower.cpp`; `test/test_closed_loop.cpp`; this plan,
+  `docs/master_plan.md`, `CLAUDE.md`, `docs/glossary.md`.
+- **How it works:** each tick at sim time t: no odometry → WAITING;
+  t − stamp > odom_timeout → STOPPED: odom timeout; t − t_first < start_delay
+  → WAITING; t − t_run_start > max_run_time → STOPPED: time limit;
+  route finished → FINISHED (zero thrust, pods straight); else RUNNING i/9:
+  Route → LOS ψ_d → χ = course_angle(ψ, u, v, u_min) → HeadingControl →
+  SpeedControl (Δt from odometry stamps; 0 for a repeated message) → mix().
+  GateMonitor every tick with odometry. Commands, target and cross-track
+  error every tick, status on change, path once (transient local, `world`).
+  Boat values are required parameters (no default); M1.4's launch file reads
+  them from `asv.yaml`.
+- **Check:** build without warnings; 78 old gtests + `test_follower`;
+  `test_closed_loop` output compared before/after; 29 Python tests; headless
+  Gazebo with the node started by hand: status WAITING → RUNNING 1/9, x
+  increases, `ros2 node info` shows only `/asv/ground_truth/odom` (+ `/clock`)
+  as input, path received with transient-local QoS. Observation only: how far
+  the run gets, reverse thrust share.
+- **Can't check:** Gazebo window, RViz path. Unverified: whether Gazebo
+  keeps the last thrust command when the node is killed.
+
+#### M1.3 Report (2026-10-20)
+- **What changed:**
+  - `include/asv_sim/follower.hpp`, `src/follower.cpp`: `Follower` = the
+    state machine of §5.7 plus one step of the control chain;
+    `gate_event_text()` for the status line.
+  - `src/waypoint_follower.cpp`: the node (parameters, latest odometry,
+    20 Hz ROS-clock timer, publishes the topics of §4). Every parameter is
+    required, no defaults in code.
+  - `config/task1_route.yaml`: the parameters of §6.
+  - `test/test_follower.cpp`: 11 gtests (states, latching, Δt from stamps,
+    same chain as by hand, gate events, bad config).
+  - `test/test_closed_loop.cpp`: drives the model through `Follower` (S2 a).
+  - ⚠ `package.xml`: `<depend>` rclcpp, std_msgs, nav_msgs, geometry_msgs;
+    `CMakeLists.txt`: `follower.cpp`, executable `waypoint_follower`,
+    `test_follower`.
+  - `docs/glossary.md`: callback/executor, state machine. This plan: §3.
+- **How it was checked:**
+  - `colcon build --packages-up-to asv_sim`: no warnings.
+  - gtests: `test_mix` 9, `test_angles` 6, `test_guidance` 14,
+    `test_control` 27, `test_gate_monitor` 15, `test_follower` 11,
+    `test_closed_loop` 7 = 89 passed; `colcon test-result`: 96 tests,
+    0 failures. Python: `Ran 29 tests ... OK`.
+  - `test_closed_loop` before/after S2: every run still finishes with 4 PASS
+    events and no collision. Changes: finish time +0.05 to +0.10 s, gate
+    offsets at most 2 mm, max |e| at most 7 mm. For y±0.5 the closest buoy
+    is a different one at the same value (0.683 → 0.682 m). Cause: the first
+    step now has Δt = 0, and the monitor samples the pose at the start of
+    the step instead of after it.
+  - Node without the boat values: aborts with `Statically typed parameter
+    'drag_linear' must be initialized.`
+  - Headless Gazebo, node started by hand (`--params-file
+    config/task1_route.yaml -p drag_linear:=4.0 -p drag_quadratic:=6.0
+    -p max_thrust:=50.0 -p min_thrust:=-40.0 -p steer_limit:=1.5708
+    -p boat_length:=1.60 -p boat_half_width:=0.44`): log `WAITING` →
+    `RUNNING 1/9`; ground-truth x 8.91 m, then 15.46 m about 5 s later.
+    `ros2 node info`: subscribers only `/asv/ground_truth/odom`, `/clock`,
+    `/parameter_events`. Path received with transient-local QoS (10 poses).
+  - Observation (bag `ws/data/bags/m1_3_check`, not committed): the whole
+    Task 1 ran on the first try. gate1 OUT −0.000, gate2 OUT −0.000,
+    gate2 IN −0.178, gate1 IN +0.020 m, all PASS. FINISHED after 64.50 s of
+    simulation time in RUNNING. Closest buoy gate2_green 0.671 m, no
+    collision. Max |e| 1.643 m. A thruster was in reverse in 49.8 % of the
+    commands (model: about 63 %), smallest thrust −23.0 N. 1892 commands in
+    96.7 s of simulation time (19.6 Hz).
+- **What could not be checked:** the Gazebo window and the path in RViz
+  (Marcell: start RViz, add Path on `/asv/autonomy/path` with Durability
+  Transient Local, fixed frame `world`). The `WAITING` status is not in the
+  bag (it was published before the recorder connected); the log shows it.
+  Not checked: whether Gazebo keeps the last thrust command when the node is
+  killed. Only one run so far; repeatability (3 runs) is M1.5.
+- **How to read the code:** start at `Follower::step()` (`follower.cpp`).
+  It has the §5.7 state order, then the chain Route → LOS (5.1, 5.2) →
+  `course_angle()` → `HeadingControl` (5.3) → `SpeedControl` (5.4) → `mix()`
+  (5.5). Then `WaypointFollower::tick()`: message in, `step()`, messages
+  out. `to_nav()` maps the odometry to ψ, u, v, ω.
+- **Numbers for the thesis:** Gazebo run, starting gains of §6: run time
+  64.50 s, max |e| 1.643 m, closest buoy 0.671 m, gate offsets above
+  [MEASURED, one run, 2026-10-20]. Model, same code: 64.60 s, 1.645 m,
+  0.684 m [MEASURED model]. Reverse thrust 49.8 % of commands [MEASURED].
+- **Check your understanding:**
+  1. Why does the follower publish zero thrust every cycle in FINISHED,
+     instead of just stopping publishing?
+  2. Why is Δt taken from the odometry stamps and not from 1/control_rate?
+  3. What would go wrong if STOPPED were not latched and the odometry came
+     back after a gap of a few seconds?
 
 ### Step 4 — One-command launch (`launch/task1.launch.py`)  (M1.4)
 Includes `sim.launch.py` (arguments passed through, e.g. `gui:=false`), starts

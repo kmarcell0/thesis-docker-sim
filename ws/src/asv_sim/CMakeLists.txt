@@ -15,6 +15,7 @@ find_package(ament_cmake REQUIRED)
 add_library(asv_sim_guidance
   src/angles.cpp
   src/control.cpp
+  src/follower.cpp
   src/gate_monitor.cpp
   src/guidance.cpp
   src/mix.cpp
@@ -23,6 +24,21 @@ target_include_directories(asv_sim_guidance PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
 )
+
+# Nodes: ROS I/O only, the logic is in asv_sim_guidance.
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+add_executable(waypoint_follower src/waypoint_follower.cpp)
+target_link_libraries(waypoint_follower
+  asv_sim_guidance
+  rclcpp::rclcpp
+  ${std_msgs_TARGETS}
+  ${nav_msgs_TARGETS}
+  ${geometry_msgs_TARGETS}
+)
+install(TARGETS waypoint_follower DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/ DESTINATION include)
 install(TARGETS asv_sim_guidance
@@ -51,6 +67,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_control asv_sim_guidance)
   ament_add_gtest(test_gate_monitor test/test_gate_monitor.cpp)
   target_link_libraries(test_gate_monitor asv_sim_guidance)
+  ament_add_gtest(test_follower test/test_follower.cpp)
+  target_link_libraries(test_follower asv_sim_guidance)
 
   # Closed-loop logic test (M1.2e): reads the boat values from config/asv.yaml
   # and config/asv_report.json in the source tree.

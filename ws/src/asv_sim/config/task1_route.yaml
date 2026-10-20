@@ -1,0 +1,50 @@
+# Parameters of the Milestone 1 waypoint follower (milestone1_plan.md
+# section 6). ROS parameter file: ros2 run ... --params-file <this file>.
+# Every value is required (the node has no defaults in code). The boat's own
+# values (drag_linear, drag_quadratic, max_thrust, min_thrust, steer_limit,
+# boat_length, boat_half_width) are NOT here: they come from config/asv.yaml
+# (passed by task1.launch.py from M1.4 on; by hand with -p before that).
+waypoint_follower:
+  ros__parameters:
+    odom_topic: /asv/ground_truth/odom
+    control_rate: 20.0          # Hz
+    start_delay: 3.0            # s after the first odometry message
+    max_run_time: 180.0         # s
+    odom_timeout: 0.5           # s
+    # route W0..W9; W0 = the spawn, fixed (10.15 a) [REPO course geometry]
+    waypoints_x: [0.0, 17.0, 22.0, 25.0, 25.5, 23.0, 20.0, 17.0, 15.0, -1.0]
+    waypoints_y: [0.0, 0.0, 2.5, 1.0, -2.0, -4.0, -2.5, -0.5, 0.0, 0.0]
+    speeds:      [1.0, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.8, 1.0]   # m/s per segment [EST]
+    switch_distance: 1.5        # m, R_switch [EST]
+    lookahead: 3.0              # m, Delta [EST]
+    # heading control (starting values - tuned in M1.5) [EST]
+    heading_kp: 1.2             # rad steer per rad error (K_psi)
+    heading_kd: 0.6             # rad steer per rad/s yaw rate (K_omega)
+    max_steer: 0.8              # rad
+    spin_threshold: 0.3         # rad, psi_spin (10.14 a)
+    spin_kp: 2.0                # 1/rad, K_spin (ramp, 10.3 b; 10.14 a): spin_max at 0.5 rad
+    spin_max: 0.4
+    spin_small_kp: 2.0          # 1/rad, K_s, proportional spin (10.16 a) [MEASURED
+                                # in the M1.2f model sweep: 1.0-3.0 pass, 2.0 the middle]
+    course_min_speed: 0.3       # m/s, u_min, low-speed guard of the course (M1.2f) [EST]
+    # speed control [EST]
+    speed_kp: 0.3               # throttle per m/s error
+    speed_ki: 0.05
+    stop_gain: 0.5              # 1/s, K_stop
+    turn_threshold: 0.3         # rad, psi_turn: throttle >= 0 above it (10.2 c)
+    min_throttle: -0.3          # lower throttle limit when not turning
+    max_throttle: 1.0
+    # buoys (world frame, nominal) [REPO task pose x model pose]; radius per
+    # model: Sur-Mark 0.2286, A0 0.1015, A2 0.184 m (models/rb26_*/model.sdf).
+    # Gate buoys + nearby buoys (10.11 b); from buoys_gt.yaml after M2.7.
+    buoy_names: [gate1_red, gate1_green, gate2_red, gate2_green,
+                 t2_ch1_red, t2_ch1_green, t3_red, t3_green]
+    buoy_coords: [5.0, 1.524, 5.0, -1.524, 13.0, 1.524, 13.0, -1.524,
+                  20.781, 6.0, 23.219, 6.0, 30.0, -4.476, 30.0, -7.524]
+    buoy_radii: [0.2286, 0.2286, 0.2286, 0.2286, 0.1015, 0.1015, 0.184, 0.184]
+    # gates: name + red and green buoy by name (only the Task 1 gates are checked)
+    gate_names: [gate1, gate2]
+    gate_red: [gate1_red, gate2_red]
+    gate_green: [gate1_green, gate2_green]
+    gate_margin: 0.5            # m between the boat's side and a buoy's surface (d_m)
+    gate_capture: 2.0           # m beyond a buoy centre still reported, FAIL_OUTSIDE [EST] (10.10)
