@@ -1,0 +1,14 @@
+# Maneuver "zigzag" (M1.7a): east along y = 0 through both Task 1 gates, then
+# pod-only steps left, right, left, right (durations T, 2T, 2T, T, so the
+# heading swings about the start heading), open loop. Lead-in at 0.1 until
+# past gate 2, the pattern slower (0.06) so it ends before x = 28 m. Rows: zero-order hold;
+# the last row marks the end (all zero). Columns: mix() (include/asv_sim/mix.hpp).
+# Values [EST], checked on the 3-DOF model (test/test_maneuver_files.cpp).
+maneuver_player:
+  ros__parameters:
+    control_rate: 20.0   # Hz
+    start_delay: 3.0     # s after the first /clock message
+    times:    [0.0, 17.0, 19.0, 23.0, 27.0, 29.0]   # s: lead-in, T, 2T, 2T, T, end
+    throttle: [0.1, 0.06, 0.06, 0.06, 0.06, 0.0]
+    steer:    [0.0, 0.8, -0.8, 0.8, -0.8, 0.0]     # rad
+    spin:     [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]

@@ -69,6 +69,7 @@ publish-time stamps [SRC AP_DDS], so the real boat needs a small converter node
 | `/asv/autonomy/target` | geometry_msgs/PointStamped | controller rate | waypoint follower | display |
 | `/asv/autonomy/status` | std_msgs/String | on change | waypoint follower | state (`WAITING`, `RUNNING 1/9` … `RUNNING 9/9`, `FINISHED`, `STOPPED: <reason>`, gate events) |
 | `/asv/autonomy/cross_track_error` | std_msgs/Float64 (m) | controller rate | waypoint follower | for plots |
+| `/asv/maneuver/status` | std_msgs/String | on change | maneuver player (M1.7a) | state (`WAITING`, `RUNNING 1/N` … `RUNNING N/N`, `DONE`) |
 
 Thruster command limits [REPO `asv.yaml`]: thrust −40 N to +50 N per thruster,
 pod angle ±1.5708 rad (±90°), pod turn rate at most 2 rad/s. `mix()` clamps

@@ -18,6 +18,7 @@ add_library(asv_sim_guidance
   src/follower.cpp
   src/gate_monitor.cpp
   src/guidance.cpp
+  src/maneuver.cpp
   src/mix.cpp
 )
 target_include_directories(asv_sim_guidance PUBLIC
@@ -38,7 +39,13 @@ target_link_libraries(waypoint_follower
   ${nav_msgs_TARGETS}
   ${geometry_msgs_TARGETS}
 )
-install(TARGETS waypoint_follower DESTINATION lib/${PROJECT_NAME})
+add_executable(maneuver_player src/maneuver_player.cpp)
+target_link_libraries(maneuver_player
+  asv_sim_guidance
+  rclcpp::rclcpp
+  ${std_msgs_TARGETS}
+)
+install(TARGETS waypoint_follower maneuver_player DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/ DESTINATION include)
 install(TARGETS asv_sim_guidance
@@ -69,6 +76,8 @@ if(BUILD_TESTING)
   target_link_libraries(test_gate_monitor asv_sim_guidance)
   ament_add_gtest(test_follower test/test_follower.cpp)
   target_link_libraries(test_follower asv_sim_guidance)
+  ament_add_gtest(test_maneuver test/test_maneuver.cpp)
+  target_link_libraries(test_maneuver asv_sim_guidance)
 
   # Closed-loop logic test (M1.2e): reads the boat values from config/asv.yaml
   # and config/asv_report.json in the source tree.
@@ -77,6 +86,12 @@ if(BUILD_TESTING)
   ament_add_gtest(test_closed_loop test/test_closed_loop.cpp)
   target_link_libraries(test_closed_loop asv_sim_guidance yaml-cpp::yaml-cpp)
   target_compile_definitions(test_closed_loop PRIVATE
+    ASV_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
+  # Maneuver files on the 3-DOF model (M1.7a): config/maneuvers/*.yaml, and
+  # the Task 1 buoys from config/task1_route.yaml.
+  ament_add_gtest(test_maneuver_files test/test_maneuver_files.cpp)
+  target_link_libraries(test_maneuver_files asv_sim_guidance yaml-cpp::yaml-cpp)
+  target_compile_definitions(test_maneuver_files PRIVATE
     ASV_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
 endif()
 

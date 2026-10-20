@@ -313,6 +313,12 @@ innovations. Needs no ground truth, so it also works on a real boat.
 rad/s/√Hz). The noise per sample is the density divided by √dt (one convention;
 TDK's definition gives a value √2 smaller: see `design.md` §4.1).
 
+**Open loop, closed loop.** *Closed loop*: the controller measures the result
+(here the true pose) and corrects towards the goal, like the waypoint follower;
+the path is what is fixed. *Open loop*: the commands are played as planned and
+nothing is measured, like the maneuver player (M1.7a); the inputs are what is
+fixed, and any drift (waves, timing) stays in the path.
+
 **OOM kill.** When a cgroup (or the whole computer) runs out of memory, the
 kernel's out-of-memory killer ends a process. In the benchmark it marks the RAM
 size that is too small.
@@ -416,7 +422,9 @@ pods sit behind the centre of gravity: to turn right they push the stern left,
 so the whole boat first slides left before it turns (found in M1.2f).
 
 **Zero-order hold.** A command is held constant until the next one arrives
-(here for the 50 ms between control steps).
+(here for the 50 ms between control steps). The maneuver player (M1.7a) holds
+each table row the same way until the next row's time: c(τ) = c_k for
+t_k ≤ τ < t_{k+1}.
 
 **Explicit Euler.** The simplest way to step a differential equation:
 x(t + h) = x(t) + h·ẋ(t). Accurate when the step h is small (here 2.5 ms).

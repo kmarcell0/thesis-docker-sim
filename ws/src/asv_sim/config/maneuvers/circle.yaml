@@ -1,0 +1,17 @@
+# Maneuver "circle" (M1.7a, decision Q5 B1, 2026-10-20): first a spin in
+# place (differential thrust only) that turns the boat away from the course,
+# a short straight leg, then left (counter-clockwise) circles with the pods
+# alone, both thrusters forward and constant, west of the spawn (open water,
+# no course elements). Open loop: the spin angle is not controlled.
+# Rows: zero-order hold; the last row marks the end (all zero, then zero
+# thrust until Ctrl-C). Columns: mix() (include/asv_sim/mix.hpp).
+# Values [EST], checked on the 3-DOF model (test/test_maneuver_files.cpp):
+# about 2.1 laps, diameter about 20 m, x -13..6 m, y 0..21 m.
+maneuver_player:
+  ros__parameters:
+    control_rate: 20.0   # Hz
+    start_delay: 3.0     # s after the first /clock message
+    times:    [0.0, 10.0, 15.0, 145.0]   # s: spin in place, straight, circles, end
+    throttle: [0.0, 0.1, 0.1, 0.0]       # fraction of max_thrust; 0.1 -> about 1 m/s straight
+    steer:    [0.0, 0.0, 0.5, 0.0]       # rad, > 0 turns left
+    spin:     [0.1, 0.0, 0.0, 0.0]       # fraction of max_thrust, > 0 turns left

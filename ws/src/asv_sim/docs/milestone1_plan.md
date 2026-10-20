@@ -1210,6 +1210,105 @@ zig-zag).
 - **Check:** the same maneuver run twice; the largest difference between the
   two true trajectories is measured and reported.
 
+Split on 2026-10-20 into M1.7a (the player) and M1.7b (repeatability in
+Gazebo, own brief).
+
+#### M1.7a Brief (agreed 2026-10-20)
+- **Goal:** `ros2 launch asv_sim maneuver.launch.py maneuver:=circle
+  [gui:=false]` plays a timed (t, throttle, steer, spin) table through
+  `mix()`, open loop, in simulation time.
+- **Decisions (2026-10-20):** P1 split a/b; P2 zero-order hold between rows
+  (not linear interpolation); P3 after the last row the player keeps
+  publishing zero thrust and `DONE` until Ctrl-C (same as the follower, L2 a).
+- **Why:** repeatable test runs with known inputs (straight, circle,
+  zig-zag) for recordings (M2.9) and filter studies; Experimental Scenarios.
+  Differs from the follower: the inputs are fixed, the path is not.
+- **New ideas:** open loop; zero-order hold (glossary).
+- **Files:** new `include/asv_sim/maneuver.hpp`, `src/maneuver.cpp`
+  (`Maneuver`, in `asv_sim_guidance`), `test/test_maneuver.cpp`,
+  `test/test_maneuver_files.cpp` (each maneuver on the 3-DOF model),
+  `src/maneuver_player.cpp` (I/O only), `launch/maneuver.launch.py`,
+  `config/maneuvers/{straight,circle,zigzag}.yaml`; edits `CMakeLists.txt`
+  (no new dependencies), `docs/design.md` §1, `docs/glossary.md`,
+  `AUTONOMY.md`, this plan, `docs/master_plan.md`, `CLAUDE.md`.
+- **How it works:** t₀ = first nonzero ROS time + `start_delay`
+  (`design.md` §3 rule 5), τ = t − t₀; c(τ) = c_k for t_k ≤ τ < t_{k+1};
+  c = 0 for τ < 0 and τ ≥ t_N (the last row must be all zero). Every 20 Hz
+  tick: `mix(throttle, steer, spin, limits)` → the four thruster topics;
+  `/asv/maneuver/status`: `WAITING`, `RUNNING k/N`, `DONE`; the start time is
+  logged. The table is checked at start (t_0 = 0, strictly increasing, equal
+  lengths, last row zero). Each maneuver drives east along y = 0 through both
+  Task 1 gates, then the pattern east of gate 2 (where the Task 1 teardrop
+  turns). Values [EST], set on the 3-DOF model.
+- **Check:** build clean; gtests 89 + new; Python 44 unchanged; on the model
+  every maneuver keeps ≥ 1.0 m [EST] from all Task 1 buoys; one headless
+  Gazebo run per maneuver goes WAITING → RUNNING → DONE, `use_sim_time` true.
+- **Can't check:** the Gazebo window.
+
+Changed during the build (2026-10-20, Marcell): **Q4 a**, clearance 0.5 m
+for every buoy and zone instead of 1.0 m. A pass through a Task 1 gate
+centre gives 1.524 − 0.2286 − 0.44 = 0.855 m, so 1.0 m was impossible.
+**Q5 B1**, the circle is a spin in place followed by pods-only left circles
+west of the spawn. The world has no shoreline, so the area check uses
+keep-out zones around Tasks 2, 3 and 5 instead of a free box. Inside the
+first box no circle fitted: pods-only radius is about 10 m [MEASURED on the
+model].
+
+#### M1.7a Report (2026-10-20)
+1. **What changed**
+   - `include/asv_sim/maneuver.hpp`, `src/maneuver.cpp`: `Maneuver` (checks
+     the table, zero-order hold `active_row()`, `command_at()`) and
+     `ManeuverPlayer` (start on the first nonzero clock + `start_delay`,
+     states WAITING/RUNNING/DONE, `mix()`), in `asv_sim_guidance`.
+   - `src/maneuver_player.cpp`: node, I/O only; 20 Hz ROS-clock timer, four
+     thruster topics, `/asv/maneuver/status`, logs the start time.
+   - `launch/maneuver.launch.py`: `maneuver:=<name>`, `gui`; limits from
+     `asv.yaml` through `boat_params()` of `task1.launch.py`.
+   - `config/maneuvers/{straight,zigzag,circle}.yaml`: the three tables.
+   - `test/test_maneuver.cpp` (8 gtests), `test/test_maneuver_files.cpp`
+     (3 gtests: each file on the 3-DOF model; buoys and keep-out zones).
+   - `CMakeLists.txt`; `docs/design.md` §1 (status topic); `docs/glossary.md`
+     (open/closed loop; zero-order hold extended); `AUTONOMY.md` §9;
+     `docs/master_plan.md` (M1.7 split into M1.7a, M1.7b); `CLAUDE.md`.
+2. **How it was checked**
+   - `colcon build --packages-up-to asv_sim`: no warnings.
+   - `colcon test-result`: 109 tests, 0 failures (100 gtests: the 89 before
+     plus `test_maneuver` 8, `test_maneuver_files` 3; 9 CTest wrappers).
+   - `python3 -m unittest discover -s tests`: Ran 44 tests, OK.
+   - Model check [MEASURED, 3-DOF model, no waves]:
+
+     | maneuver | end (x, y) m | closest buoy | closest zone |
+     |---|---|---|---|
+     | straight | (26.10, 0.00) | gate1_red 0.855 m | task3 3.72 m |
+     | zigzag | (24.81, 0.42) | gate1_red 0.855 m | task2 4.66 m |
+     | circle | (3.01, 3.93), x −13.2..6.3, y 0..21.0 | gate1_red 2.177 m | task2 9.26 m |
+
+   - Headless Gazebo, one run each (`ros2 launch asv_sim maneuver.launch.py
+     maneuver:=<name> gui:=false`): all three logged `start at t = 3.052 s`,
+     WAITING → RUNNING 1/N … N/N → DONE; `ros2 param get /maneuver_player
+     use_sim_time` → True. Last true position (taken a few seconds after
+     DONE, so only a rough comparison): zigzag (24.99, 0.45) m, circle
+     (3.65, 4.58) m. Straight: RUNNING → DONE took 40.2 s wall for 25 s
+     simulated (real-time factor about 0.62 in this run).
+3. **What could not be checked:** the Gazebo window (`gui:=true`), and
+   whether the boat touches a buoy in Gazebo (no clearance analysis of the
+   Gazebo runs yet: M1.7b). Marcell: `ros2 launch asv_sim maneuver.launch.py
+   maneuver:=circle` and watch the spin in place and the circles.
+4. **How to read the code:** start at `maneuver.hpp`.
+   `Maneuver::active_row()` is the zero-order hold c(τ) = c_k for
+   t_k ≤ τ < t_{k+1}; `ManeuverPlayer::step()` sets t_start = first t > 0 +
+   start_delay, τ = t − t_start, and calls `mix()`. The node
+   (`maneuver_player.cpp`) only copies parameters in and commands out.
+5. **Numbers for the thesis:** maneuver tables in `AUTONOMY.md` §9 [EST];
+   `start_delay` 3 s, 20 Hz [EST]; clearance limit 0.5 m [EST, Q4 a];
+   keep-out zones [REPO course files]; model results above [MEASURED, model].
+6. **Check your understanding**
+   1. Why does the circle maneuver start with a spin in place instead of
+      turning right away?
+   2. If the player's timer fires 30 ms late in one run, which part of the
+      path changes, and why does the follower not have this problem?
+   3. Why does the last row of every table have to be all zero?
+
 ### Step 8 — Keyboard teleop (WASD)  (M1.8)
 C++, calls `mix()`. W/S change the throttle level, A/D the steer level and Q/E
 the spin level, in steps; Space sets everything to zero. Levels stay set after

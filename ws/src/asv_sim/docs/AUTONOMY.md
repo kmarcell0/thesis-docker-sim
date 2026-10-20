@@ -297,3 +297,36 @@ docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/analyze
   obstacle avoidance (out of scope, `milestone1_plan.md` §9).
 - Clearance and gate checks sample at the 20 Hz control step; `analyze_run.py`
   uses all 50 Hz poses.
+
+## 9. Maneuver player (M1.7a, open loop)
+
+Not part of Task 1: a second driver for repeatable test runs. It reads no
+pose; it plays a fixed table through the same `mix()`. Never run it together
+with the follower (both publish the thruster commands).
+
+```bash
+docker compose exec -T sim bash -ic \
+    "ros2 launch asv_sim maneuver.launch.py maneuver:=circle gui:=false"
+```
+
+- Table: `config/maneuvers/<name>.yaml`, columns `times`, `throttle`, `steer`,
+  `spin` (meaning as in §5.6). Checked at start: t_0 = 0, strictly
+  increasing, equal lengths, last row all zero (it marks the end t_N).
+- Start: t_start = first nonzero ROS time + `start_delay` (3 s); τ = t − t_start
+  (logged as `start at t = ... s`).
+- Command (`Maneuver::command_at()`, `maneuver.hpp`), zero-order hold:
+  c(τ) = c_k for t_k ≤ τ < t_{k+1}; c = 0 for τ < 0 and τ ≥ t_N.
+- Each 20 Hz tick (`ManeuverPlayer::step()`): mix(c) → the four thruster
+  topics; after t_N zero thrust until Ctrl-C (P3). Status on
+  `/asv/maneuver/status`: `WAITING`, `RUNNING k/N`, `DONE`.
+- Maneuvers [EST], checked on the 3-DOF model (`test_maneuver_files`: ≥ 0.5 m
+  from every buoy of `task1_route.yaml` and from keep-out zones around
+  Tasks 2, 3, 5, Q4 a):
+
+| File | What it does | Duration |
+|---|---|---|
+| `straight` | throttle 0.1 east along y = 0 through both gates | 25 s |
+| `zigzag` | lead-in 0.1 for 17 s, then throttle 0.06 with pods +0.8, −0.8, +0.8, −0.8 rad for 2, 4, 4, 2 s | 29 s |
+| `circle` | spin 0.1 in place 10 s, straight 5 s, then pods 0.5 rad, throttle 0.1: about 2 left circles of about 20 m diameter west of the spawn (Q5 B1) | 145 s |
+
+How repeatable the paths are in Gazebo is measured in M1.7b.
