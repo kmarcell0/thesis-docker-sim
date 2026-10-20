@@ -1413,6 +1413,83 @@ from a launch file. Never runs together with the follower or player.
 - **Check:** unit tests pass; Marcell drives the boat with it (Claude Code
   can't press keys).
 
+#### M1.8 Brief (agreed 2026-10-20)
+- **Goal:** `ros2 run asv_sim teleop --ros-args -p use_sim_time:=true` in
+  Marcell's own terminal drives the boat with W/S/A/D/Q/E/Space through
+  `mix()`.
+- **Decisions (2026-10-20):** language C++ (one `mix()` for follower, player
+  and teleop; a Python teleop would need a second copy of it). **T1 a**: the
+  node reads the thruster limits from `asv.yaml` and its key steps from
+  `config/teleop.yaml` itself (yaml-cpp, package share directory), because a
+  launched node gets no keyboard; ⚠ new `<depend>`s `yaml_cpp_vendor` (was
+  only `test_depend`) and `ament_index_cpp`.
+- **Why:** driving by hand to check the boat by eye and to place it before a
+  recording; a tool, no thesis section.
+- **New ideas:** terminal raw mode (glossary).
+- **Files:** new `include/asv_sim/teleop.hpp`, `src/teleop.cpp` (key logic,
+  ROS-free, in `asv_sim_guidance`), `src/teleop_node.cpp` (I/O only),
+  `config/teleop.yaml`, `test/test_teleop.cpp`; edits `CMakeLists.txt`,
+  ⚠ `package.xml`, `AUTONOMY.md`, `docs/glossary.md`, `README.md`, this plan,
+  `docs/master_plan.md`, `CLAUDE.md`.
+- **How it works:** keys (either case) W/S throttle ± step, A/D steer ± step
+  (A = left, steer > 0), Q/E spin ± step (Q = left, spin > 0), Space all zero,
+  X or Ctrl-C quit; other keys ignored. Levels clamped: throttle ∈
+  [min_thrust / max_thrust, 1], steer ∈ [−steer_limit, steer_limit], spin ∈
+  [−1, 1]; `mix()` handles the thrust saturation (10.1 b). Every 20 Hz
+  ROS-clock tick: read all waiting keys (non-blocking), publish `mix(levels)`.
+  In raw mode Ctrl-C is a byte (ISIG off), so zero is published before
+  `rclcpp::shutdown()`; SIGTERM/SIGHUP also publish zero and restore the
+  terminal. Gazebo holds the last command: a crash leaves the boat moving
+  (caveat in `AUTONOMY.md`). Steps [EST]: throttle 0.1, steer 0.1 rad, spin
+  0.1.
+- **Check:** build clean; gtests 100 + new `test_teleop`; Python 56
+  unchanged; smoke test in a headless sim under `script` (a pseudo-terminal)
+  with keys fed: "www" gives 15 N per thruster, "x" gives 0.
+- **Can't check:** real keyboard driving and the Gazebo window.
+
+#### M1.8 Report (2026-10-20)
+1. **What changed**
+   - `include/asv_sim/teleop.hpp`, `src/teleop.cpp`: `TeleopLevels`,
+     `TeleopSteps`, `apply_key()` (one key → new levels, clamped; quit flag).
+   - `src/teleop_node.cpp`: raw terminal (`RawTerminal`), keys read in the
+     main loop, 20 Hz ROS-clock timer publishes `mix(levels)`; zero on X,
+     Ctrl-C, SIGTERM, SIGHUP (own signal handlers, so zero goes out before
+     `rclcpp::shutdown()`).
+   - `config/teleop.yaml`: steps 0.1 / 0.1 rad / 0.1 [EST], `control_rate` 20 Hz.
+   - `test/test_teleop.cpp`: 9 gtests.
+   - `CMakeLists.txt` (library source, `teleop` executable, test; yaml-cpp
+     `find_package` moved out of the test block), `package.xml` (`<depend>`
+     `ament_index_cpp`, `yaml_cpp_vendor`; the `test_depend` dropped).
+   - Docs: `AUTONOMY.md` §10, glossary "Terminal raw mode", README M1 row,
+     `CLAUDE.md` baseline and Known state.
+2. **How it was checked**
+   - `colcon build --packages-up-to asv_sim`: finished, no warnings.
+   - `colcon test-result`: `119 tests, 0 errors, 0 failures, 0 skipped`
+     (109 gtests = 100 + 9 `test_teleop`, plus 10 CTest wrappers).
+   - Python: `Ran 56 tests ... OK`.
+   - Smoke test, headless sim, keys fed through `script` (a pseudo-terminal):
+     "www" then "x". Status line went 0 → 5 → 10 → 15 N per side → 0;
+     `/asv/thrusters/left/thrust`: 38 × 0.0, 69 × 15.000000000000002, then
+     2 × 0.0 (right the same); output `zero thrust published, teleop stopped`,
+     exit code 0.
+   - SIGTERM test: "ww", then `pkill -TERM`: 72 × 10.0 then 0.0, same message.
+3. **What could not be checked:** driving with a real keyboard and watching
+   the boat in the Gazebo window. Marcell: `docker compose exec sim bash`,
+   `ros2 launch asv_sim sim.launch.py &` (or the GUI in another terminal),
+   then `ros2 run asv_sim teleop --ros-args -p use_sim_time:=true`.
+4. **How to read the code:** start at `apply_key()` (`src/teleop.cpp`, a
+   switch on the key, then the clamps), then `main()` in `teleop_node.cpp`
+   (the loop: read keys → `handle_key()` → `spin_once()`; on exit
+   `publish_zero()`). The equations are only `mix()` (§5.5).
+5. **Numbers for the thesis:** none (a tool). Steps 0.1 / 0.1 rad / 0.1
+   [EST]; reverse throttle limit −40 / 50 = −0.8 [REPO asv.yaml].
+6. **Check your understanding**
+   1. Why does the node read the keys in the main loop and not in the timer
+      callback?
+   2. What would happen to the zero command if rclcpp's own Ctrl-C handler
+      were left on?
+   3. Why does one S after many W presses give 0.9 and not more?
+
 ## 8. Known risks and open points
 
 | Risk | Mitigation |

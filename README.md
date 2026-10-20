@@ -87,7 +87,7 @@ M0 🟩🟩🟩🟩🟩 │ M1 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩�
 | Milestone | What | State |
 |---|---|---|
 | M0 | Housekeeping: docs, simulation time, toolchain, repository | done |
-| M1 | Drive the course on ground truth (guidance, waypoint follower, teleop) | Task 1 done (3/3 runs pass); maneuver player and teleop next |
+| M1 | Drive the course on ground truth (guidance, waypoint follower, teleop) | done: Task 1 (3/3 runs pass), maneuver player, keyboard teleop |
 | M2 | From perfect to realistic sensor data (geodesy, corruptor, buoy map) | planned |
 | M3 | The EKF-SLAM filter, offline (detector, filter, replay, evaluation) | planned |
 | M4 | Live filter and RViz view | planned |

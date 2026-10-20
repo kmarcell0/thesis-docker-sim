@@ -432,6 +432,12 @@ x(t + h) = x(t) + h·ẋ(t). Accurate when the step h is small (here 2.5 ms).
 **Sweep.** Running the same experiment over a list of settings (e.g. noise levels)
 and collecting the results in one table.
 
+**Terminal raw mode.** Normally a terminal collects a whole line and sends it
+on Enter, shows the typed keys, and turns Ctrl-C into a signal that stops the
+program. In raw mode (set with `termios`) each key reaches the program at once,
+is not shown, and Ctrl-C is just a byte. The teleop (M1.8) uses it so it can
+publish zero thrust before it exits.
+
 **Thrust allocation (mixing).** Turning what the boat should do (go forward,
 turn) into a command for each actuator (two thrusts, two pod angles). Our
 allocator is `asv_sim::mix()`.

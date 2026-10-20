@@ -1,0 +1,7 @@
+# Keyboard teleop (M1.8): change of each level per key press.
+# The thruster limits are read from asv.yaml (thrusters), not from here.
+steps:
+  throttle: 0.1   # fraction of max_thrust (0.1 = 5 N per thruster) [EST: ~10 presses to full]
+  steer: 0.1      # rad pod angle (about 5.7 deg) [EST: fine enough for small corrections]
+  spin: 0.1       # fraction of max_thrust [EST: same feel as throttle]
+control_rate: 20.0  # Hz, same as the follower and the player [REPO task1_route.yaml]

@@ -333,3 +333,27 @@ Repeatability in Gazebo (M1.7b, 3 runs each, `tools/compare_runs.py`): the
 largest position difference between two runs is 4.18 mm (zigzag) and 4.00 mm
 (straight), the size of one 4 ms physics step at 1 m/s; the circle runs differ
 by at most 0.0104 mm over 155 s. Full table: `milestone1_plan.md`, M1.7b report.
+
+## 10. Keyboard teleop (M1.8)
+
+Not part of Task 1: drive the boat by hand through the same `mix()`. Start it
+only in your own terminal: a node started from a launch file gets no keyboard.
+Never together with the follower or the player.
+
+```bash
+docker compose exec sim bash          # interactive terminal into the container
+ros2 run asv_sim teleop --ros-args -p use_sim_time:=true
+```
+
+- Keys (either case), one press = one step (`config/teleop.yaml`, [EST]):
+  W/S throttle ±0.1, A/D steer ±0.1 rad (A = left), Q/E spin ±0.1 (Q = left),
+  Space all zero, X or Ctrl-C quit. Levels stay set after the key is released
+  (a terminal sends no key-release events).
+- Limits (`apply_key()`, `teleop.hpp`): throttle ∈ [min_thrust / max_thrust,
+  1] = [−0.8, 1], steer ∈ ±steer_limit, spin ∈ [−1, 1]; then `mix()` (§5.6).
+- Thruster limits read from `asv.yaml` by the node itself (T1 a); 20 Hz
+  ROS-clock timer; one status line shows the levels and the four commands.
+- On X, Ctrl-C, SIGTERM or SIGHUP it publishes zero and restores the terminal.
+  If it is killed hard (SIGKILL, crash), Gazebo keeps the last command and the
+  boat keeps moving: start the teleop again and press Space.
+

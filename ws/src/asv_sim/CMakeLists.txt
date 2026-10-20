@@ -20,6 +20,7 @@ add_library(asv_sim_guidance
   src/guidance.cpp
   src/maneuver.cpp
   src/mix.cpp
+  src/teleop.cpp
 )
 target_include_directories(asv_sim_guidance PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -45,7 +46,19 @@ target_link_libraries(maneuver_player
   rclcpp::rclcpp
   ${std_msgs_TARGETS}
 )
-install(TARGETS waypoint_follower maneuver_player DESTINATION lib/${PROJECT_NAME})
+# Keyboard teleop (M1.8): reads asv.yaml and teleop.yaml itself (T1 a).
+find_package(ament_index_cpp REQUIRED)
+find_package(yaml_cpp_vendor REQUIRED)
+find_package(yaml-cpp REQUIRED)
+add_executable(teleop src/teleop_node.cpp)
+target_link_libraries(teleop
+  asv_sim_guidance
+  rclcpp::rclcpp
+  ament_index_cpp::ament_index_cpp
+  yaml-cpp::yaml-cpp
+  ${std_msgs_TARGETS}
+)
+install(TARGETS waypoint_follower maneuver_player teleop DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/ DESTINATION include)
 install(TARGETS asv_sim_guidance
@@ -78,11 +91,11 @@ if(BUILD_TESTING)
   target_link_libraries(test_follower asv_sim_guidance)
   ament_add_gtest(test_maneuver test/test_maneuver.cpp)
   target_link_libraries(test_maneuver asv_sim_guidance)
+  ament_add_gtest(test_teleop test/test_teleop.cpp)
+  target_link_libraries(test_teleop asv_sim_guidance)
 
   # Closed-loop logic test (M1.2e): reads the boat values from config/asv.yaml
   # and config/asv_report.json in the source tree.
-  find_package(yaml_cpp_vendor REQUIRED)
-  find_package(yaml-cpp REQUIRED)
   ament_add_gtest(test_closed_loop test/test_closed_loop.cpp)
   target_link_libraries(test_closed_loop asv_sim_guidance yaml-cpp::yaml-cpp)
   target_compile_definitions(test_closed_loop PRIVATE
