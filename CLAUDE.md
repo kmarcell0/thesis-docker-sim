@@ -188,7 +188,7 @@ D11 message content) is raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M1.7a): 44 Python tests, run with `unittest`; `colcon test`
+  Current baseline (M1.7b): 56 Python tests, run with `unittest`; `colcon test`
   for `asv_sim` runs 100 gtests (`test_mix` 9, `test_angles` 6,
   `test_guidance` 14, `test_control` 27, `test_gate_monitor` 15,
   `test_follower` 11, `test_closed_loop` 7, `test_maneuver` 8,
@@ -344,7 +344,10 @@ Update this section in the same commit as the step that changes it.
   [gui:=false]`; never together with the follower. Tables in
   `config/maneuvers/`, checked on the 3-DOF model by `test_maneuver_files`
   (≥ 0.5 m from the Task 1 buoys and from keep-out zones around Tasks 2, 3,
-  5; the world has no shoreline). Repeatability in Gazebo: M1.7b.
+  5; the world has no shoreline). M1.7b: `tools/compare_runs.py` compares
+  recorded runs on τ; open-loop Gazebo runs repeat to within one physics step
+  (largest difference 4.18 mm at 1 m/s; circle ≤ 0.0104 mm), bags
+  `ws/data/bags/maneuver_<name>_{1,2,3}`.
 - **GNSS noise bug (until step M2.2):** `asv.yaml` gives GNSS noise in metres, but
   Gazebo applies it in degrees, so the simulated GNSS noise is about 890 m.
   Don't use GNSS data recorded before M2.2.

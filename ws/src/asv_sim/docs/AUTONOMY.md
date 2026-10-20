@@ -329,4 +329,7 @@ docker compose exec -T sim bash -ic \
 | `zigzag` | lead-in 0.1 for 17 s, then throttle 0.06 with pods +0.8, −0.8, +0.8, −0.8 rad for 2, 4, 4, 2 s | 29 s |
 | `circle` | spin 0.1 in place 10 s, straight 5 s, then pods 0.5 rad, throttle 0.1: about 2 left circles of about 20 m diameter west of the spawn (Q5 B1) | 145 s |
 
-How repeatable the paths are in Gazebo is measured in M1.7b.
+Repeatability in Gazebo (M1.7b, 3 runs each, `tools/compare_runs.py`): the
+largest position difference between two runs is 4.18 mm (zigzag) and 4.00 mm
+(straight), the size of one 4 ms physics step at 1 m/s; the circle runs differ
+by at most 0.0104 mm over 155 s. Full table: `milestone1_plan.md`, M1.7b report.

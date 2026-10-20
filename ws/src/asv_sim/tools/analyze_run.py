@@ -206,8 +206,12 @@ def passes_in_order(events):
 
 # ---- bag I/O ---------------------------------------------------------------
 
-def read_bag(path):
-    """{topic: [(t_bag, msg), ...]}; t_bag in s (simulation time with --use-sim-time)."""
+def read_bag(path, topics=None):
+    """{topic: [(t_bag, msg), ...]}; t_bag in s (simulation time with --use-sim-time).
+
+    topics: the topics to read (default: the Task 1 topics above); topics not
+    in the bag are left out.
+    """
     import rosbag2_py
     from rclpy.serialization import deserialize_message
     from rosidl_runtime_py.utilities import get_message
@@ -216,8 +220,9 @@ def read_bag(path):
     reader.open(rosbag2_py.StorageOptions(uri=path, storage_id=''),
                 rosbag2_py.ConverterOptions('cdr', 'cdr'))
     types = {t.name: t.type for t in reader.get_all_topics_and_types()}
-    wanted = [t for t in (TOPIC_ODOM, TOPIC_STATUS, TOPIC_CTE, TOPIC_LEFT, TOPIC_RIGHT)
-              if t in types]
+    if topics is None:
+        topics = (TOPIC_ODOM, TOPIC_STATUS, TOPIC_CTE, TOPIC_LEFT, TOPIC_RIGHT)
+    wanted = [t for t in topics if t in types]
     reader.set_filter(rosbag2_py.StorageFilter(topics=wanted))
     classes = {t: get_message(types[t]) for t in wanted}
     data = {t: [] for t in wanted}

@@ -1309,6 +1309,99 @@ model].
       path changes, and why does the follower not have this problem?
    3. Why does the last row of every table have to be all zero?
 
+#### M1.7b Brief (agreed 2026-10-20)
+- **Goal:** `tools/compare_runs.py <bag> <bag> [...]` gives the path
+  difference between recorded runs of the same maneuver; every maneuver
+  recorded three times in headless Gazebo; numbers reported.
+- **Decision (2026-10-20):** Q1 3 runs per maneuver (three pairs; a range,
+  not one number).
+- **Why:** shows whether one recording per maneuver stands for "the" run;
+  Experimental Scenarios. Also checks buoy clearance in Gazebo (M1.7a only
+  checked it on the model).
+- **Files:** new `tools/compare_runs.py`, `tests/test_compare_runs.py`;
+  `tools/analyze_run.py` (`read_bag(path, topics=None)`, default unchanged);
+  this plan, `AUTONOMY.md` §9, `docs/master_plan.md`, `CLAUDE.md`. No C++,
+  no new dependency.
+- **How it works:** per bag: poses from `/asv/ground_truth/odom` header
+  stamps; t_s = bag time of the first `RUNNING` on `/asv/maneuver/status`;
+  τ = t − t_s. Run B linearly interpolated at run A's τ (ψ unwrapped first).
+  e(τ) = ‖p_B(τ) − p_A(τ)‖, e_ψ(τ) = wrap(ψ_B − ψ_A). Per pair over
+  τ ∈ [0, t_N + 10 s]: max e, RMS e, e(t_N), max |e_ψ|; per run: closest
+  buoy; thruster command change times compared between runs. Writes
+  `compare.json`, `compare.png` to `ws/data/runs/maneuver_<name>/`.
+- **Recording:** `maneuver.launch.py gui:=false` in the background,
+  `ros2 bag record --use-sim-time` (odom, maneuver status, four thruster
+  topics) into `ws/data/bags/maneuver_<name>_<k>`; fresh Gazebo per run.
+- **Check:** unit tests (identical runs → e = 0; 0.1 m shift → 0.1 m; time
+  offset interpolated right; ψ across ±π); Python 44 + new; gtests 100
+  unchanged. Expected [EST, unverified]: 0 to a few dm, growing with τ,
+  largest for the circle.
+- **Can't check:** nothing visual is needed.
+
+#### M1.7b Report (2026-10-20)
+1. **What changed**
+   - `tools/compare_runs.py`: lines runs up on τ (first `RUNNING`),
+     interpolates run B at run A's samples, prints e and e_ψ per pair (mm in
+     the printout, m in `compare.json`), closest buoy per run, command
+     timing per pair; writes `compare.json`, `compare.png`.
+   - `tests/test_compare_runs.py`: 12 tests (wrap/unwrap, start, track,
+     interpolation, identical runs → 0, 0.1 m shift → 0.1 m, offset
+     sampling, heading across ±π, no overlap, command changes).
+   - `tools/analyze_run.py`: `read_bag(path, topics=None)`; default list
+     unchanged.
+   - `AUTONOMY.md` §9 (result line), `docs/master_plan.md`, `CLAUDE.md`.
+2. **How it was checked**
+   - `python3 -m unittest discover -s tests`: Ran 56 tests, OK (44 + 12).
+     No C++ change: gtests 100 as in M1.7a.
+   - A bag compared with itself: e = 0 exactly.
+   - Nine headless recordings, fresh Gazebo each (`ws/data/bags/
+     maneuver_{straight,zigzag,circle}_{1,2,3}`); every run logged
+     `start at t = 3.052 s` and reached DONE; the circle bags cover
+     265.8 s of simulation time (τ up to t_N + 10 s = 155 s needed).
+   - Results [MEASURED], τ ∈ [0, t_N + 10 s]:
+
+     | maneuver | pair | max e (mm) | RMS e (mm) | e(t_N) (mm) | max abs e_ψ (rad) |
+     |---|---|---|---|---|---|
+     | straight | 1-2 | 0 | 0 | 0 | 0 |
+     | straight | 1-3 | 4.0007 | 3.8797 | 4.0001 | 6.4e-6 |
+     | straight | 2-3 | 4.0007 | 3.8797 | 4.0001 | 6.4e-6 |
+     | zigzag | 1-2 | 4.1823 | 3.8993 | 4.1821 | 7.0e-4 |
+     | zigzag | 1-3 | 1.2438 | 0.5084 | 1.2116 | 7.0e-4 |
+     | zigzag | 2-3 | 3.9999 | 3.8913 | 3.9990 | 6.5e-6 |
+     | circle | 1-2 | 0.0104 | 0.0090 | 0.0083 | 1.3e-7 |
+     | circle | 1-3 | 0.0033 | 0.0032 | 0.0031 | 3.1e-8 |
+     | circle | 2-3 | 0.0097 | 0.0084 | 0.0080 | 1.2e-7 |
+
+   - In every pair the recorded command values and times (bag time − t_s)
+     are identical (largest offset 0.000 s).
+   - Closest buoy, all runs: straight and zigzag gate2_green 0.855 m (the
+     gate-centre pass), circle gate1_red 2.202 m.
+   - Where the differences come from (checked on the τ series):
+     - one physics step: straight run 3 and zigzag run 2 differ from the
+       others by a constant 4.00 mm from τ = 0.008 s on, = 1 m/s × 4 ms
+       (one physics step [REPO world step 0.004 s]): the first command
+       reached the physics one step earlier or later. Zigzag runs 1 and 3
+       are identical until τ = 27.008 s (the last steering change), then
+       differ by up to 1.24 mm.
+     - before the start: at τ = −3 s, with zero thrust at the spawn,
+       some runs already differ by up to 6.7 µm. Cause not determined.
+3. **What could not be checked:** why the step offset happens (the
+   recorder sees the same command times; the offset is between the bridge
+   and the physics step, not visible in the bag). The plots
+   (`ws/data/runs/maneuver_*/compare.png`) are for Marcell to look at.
+4. **How to read the code:** `compare_runs.main()` → `analyze_runs()`
+   (per bag: `start_time()`, `track()`, clearances, `command_changes()`)
+   → `compare_pairs()` → `compare()`, which implements
+   e(τ) = ‖p_B(τ) − p_A(τ)‖ with `interpolate()`, and e_ψ = wrap(ψ_B − ψ_A).
+5. **Numbers for the thesis:** the table above [MEASURED, 3 runs per
+   maneuver, headless Gazebo, world default waves]. Largest difference
+   4.18 mm over 39 s (zigzag); circle ≤ 0.0104 mm over 155 s.
+6. **Check your understanding**
+   1. Why is a constant 4 mm offset a time shift and not a different path?
+   2. The circle runs did not get the step offset. Would a 4 ms shift in
+      the circle give a larger or smaller e than in the straight run?
+   3. Why are the recorded command times identical while the paths differ?
+
 ### Step 8 — Keyboard teleop (WASD)  (M1.8)
 C++, calls `mix()`. W/S change the throttle level, A/D the steer level and Q/E
 the spin level, in steps; Space sets everything to zero. Levels stay set after
