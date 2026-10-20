@@ -137,7 +137,7 @@ RunResult run_task1(const BoatState & start)
   c.lookahead = 3.0;
   // heading_kp, heading_kd, max_steer, spin_threshold, spin_kp, spin_max,
   // spin_small_kp (spin_threshold 0.3, spin_kp 2.0: 10.14 a; spin_small_kp
-  // 2.0: 10.16 a)
+  // 2.0: 10.16 b)
   c.heading = {1.2, 0.6, 0.8, 0.3, 2.0, 0.4, 2.0};
   c.course_min_speed = 0.3;  // m/s, u_min (M1.2f S1) [EST]
   // drag, max_thrust (asv.yaml); speed_kp, speed_ki, stop_gain,

@@ -119,7 +119,7 @@ TEST(HeadingControl, InvalidGainsThrow)
   EXPECT_THROW(HeadingControl{g}, std::invalid_argument);
 }
 
-// ---- Proportional spin (M1.2f, 10.16 a) -----------------------------------
+// ---- Proportional spin (M1.2f, 10.16 b) -----------------------------------
 
 TEST(HeadingControl, ProportionalSpinBelowThreshold)
 {

@@ -1,10 +1,11 @@
-# Task 1 autonomy — as built (M1.6)
+# Milestone 1 autonomy — as built (M1.8)
 
-Reference notes for the Milestone 1 waypoint follower: what runs, the final
-equations, the parameters and the measured results. Bullet notes and
+Reference notes for the Milestone 1 drivers (waypoint follower §1–8, maneuver
+player §9, keyboard teleop §10): what runs, the final equations, the
+parameters and the measured results. Bullet notes and
 equations only.
 
-- **Status of this file:** the as-built state after M1.5 (2026-10-20).
+- **Status of this file:** the as-built state after M1.8 (2026-10-20).
 - **History and reasons:** `milestone1_plan.md` §2–6 (first proposal) and §10
   (decisions 10.1–10.16); decision labels below ("10.13 a") point there.
 - **Symbols:** `docs/glossary.md`, Symbols table. The guidance symbols

@@ -293,7 +293,7 @@ use_sim_time:=true`); you can't run or test the key input.
 ## Known state / caveats
 Update this section in the same commit as the step that changes it.
 
-- **C++ so far (M1.7a):** the library `asv_sim_guidance` holds `mix()`
+- **C++ so far (M1.8):** the library `asv_sim_guidance` holds `mix()`
   (`mix.hpp`), `wrap_angle()` and `yaw_from_quaternion()` (`angles.hpp`),
   `Route` and `LosGuidance` (`guidance.hpp`), `HeadingControl` and
   `SpeedControl` and `course_angle()` (`control.hpp`), and `GateMonitor`
@@ -335,8 +335,7 @@ Update this section in the same commit as the step that changes it.
   `wrap_angle()` is the one wrapping helper; it moves to `asv_core` in M2.1.
   M1.6: the as-built description (final equations, parameters, results,
   limitations) is `ws/src/asv_sim/docs/AUTONOMY.md`; `milestone1_plan.md`
-  §2–6 are the history. Decision 10.16 is b (proportional spin); the C++
-  comments still say "10.16 a".
+  §2–6 are the history. Decision 10.16 is b (proportional spin).
   M1.7a: open-loop `maneuver_player` (`Maneuver`, `ManeuverPlayer` in
   `maneuver.hpp`; zero-order hold; start = first nonzero clock + 3 s; zero
   thrust after the end; status `/asv/maneuver/status`); run with

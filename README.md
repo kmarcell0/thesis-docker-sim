@@ -81,7 +81,8 @@ setting. Details: [`docs/design.md`](docs/design.md).
 ## Status
 
 ```
-M0 🟩🟩🟩🟩🟩 │ M1 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟨⬜ │ M2 ⬜⬜⬜⬜⬜⬜⬜⬜ │ M3 ⬜⬜⬜⬜⬜⬜⬜⬜⬜ │ M4 ⬜ │ M6 ⬜⬜⬜
+M0 🟩🟩🟩🟩🟩 │ M1 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 │ M2 ⬜⬜⬜⬜⬜⬜⬜⬜ │ M3 ⬜⬜⬜⬜⬜⬜⬜⬜⬜ │ M4 ⬜ │ M6 ⬜⬜⬜
+19 of 40 steps done: 48% completed!
 ```
 
 | Milestone | What | State |
@@ -136,6 +137,23 @@ docker compose exec -T sim bash -ic "timeout -s INT 160 ros2 bag record --use-si
 docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/analyze_run.py /ws/data/bags/task1_1"   # metrics.json, trajectory.png
 ```
 
+Open-loop maneuvers (`straight`, `zigzag`, `circle`; for repeatable test runs,
+`AUTONOMY.md` §9) and a comparison of recorded runs:
+
+```bash
+docker compose exec -T sim bash -ic "ros2 launch asv_sim maneuver.launch.py maneuver:=circle gui:=false"
+# each run: fresh Gazebo + a recording (odom, /asv/maneuver/status, thruster topics) into ws/data/bags/maneuver_circle_<k>
+docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/compare_runs.py --maneuver circle /ws/data/bags/maneuver_circle_{1,2,3}"   # compare.json, compare.png
+```
+
+Drive by keyboard (WASD; `AUTONOMY.md` §10). Only in your own interactive
+terminal, never together with the follower or the maneuver player:
+
+```bash
+docker compose exec sim bash
+ros2 run asv_sim teleop --ros-args -p use_sim_time:=true
+```
+
 Run the simulation:
 
 ```bash
@@ -172,11 +190,14 @@ ws/                      colcon workspace, mounted at /ws in the container
   src/asv_sim/           our simulator package
     config/asv.yaml      boat description (edit this)
     models/, worlds/     generated boat model, RoboBoat 2026 course
-    include/asv_sim/, src/   guidance and control (ROS-free) + waypoint_follower node
+    include/asv_sim/, src/   ROS-free guidance, control, maneuver and teleop logic
+                         + nodes waypoint_follower, maneuver_player, teleop
     test/                C++ gtests (incl. a closed-loop run on a 3-DOF model)
-    launch/              sim.launch.py, task1.launch.py
+    launch/              sim.launch.py, task1.launch.py, maneuver.launch.py
     config/task1_route.yaml  Task 1 route, gains, buoys
-    tools/               model generator, studies, checks, analyze_run.py
+    config/maneuvers/    open-loop maneuver tables (straight, zigzag, circle)
+    config/teleop.yaml   teleop key steps
+    tools/               model generator, studies, checks, analyze_run.py, compare_runs.py
     tests/               Python tests
   data/                  bags, run results, figures (not in git)
 ```
@@ -192,8 +213,10 @@ listed in [`docs/design.md`](docs/design.md) §12.
 | [`docs/design.md`](docs/design.md) | Topics, frames, time rules, noise models, filter, evaluation |
 | [`docs/glossary.md`](docs/glossary.md) | Symbols and plain-language terms |
 | [`docs/decision_notes.md`](docs/decision_notes.md) | Background for the decisions still open |
-| [`docs/plans/`](docs/plans/) | Brief and report of every finished step |
-| [`ws/src/asv_sim/docs/AUTONOMY.md`](ws/src/asv_sim/docs/AUTONOMY.md) | Task 1 autonomy as built: equations, parameters, results |
+| [`docs/plans/`](docs/plans/) | Brief and report of every finished step (from M2 on) |
+| [`docs/reviews/`](docs/reviews/) | External reviews (Gemini) of the plan and the code, checked point by point |
+| [`ws/src/asv_sim/docs/milestone1_plan.md`](ws/src/asv_sim/docs/milestone1_plan.md) | Milestone 1: design history, decisions 10.x, briefs and reports of M1.x |
+| [`ws/src/asv_sim/docs/AUTONOMY.md`](ws/src/asv_sim/docs/AUTONOMY.md) | M1 drivers as built (follower, maneuver player, teleop): equations, parameters, results |
 | [`ws/src/asv_sim/docs/HOW_IT_WORKS.md`](ws/src/asv_sim/docs/HOW_IT_WORKS.md) | How the boat model generator works |
 | [`CLAUDE.md`](CLAUDE.md) | Working rules for the AI coding assistant used in this project |
 

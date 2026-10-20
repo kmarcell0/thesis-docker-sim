@@ -2,7 +2,7 @@
 // desired heading and speed into the (throttle, steer, spin) that mix() takes.
 // ROS-free. Spec: milestone1_plan.md sections 5.3 and 5.4, decisions 10.2 c
 // and 10.3 b (2026-10-18); course feedback 10.13 a and proportional spin
-// 10.16 a (2026-10-19, M1.2f).
+// 10.16 b (2026-10-19, M1.2f).
 // Symbols as in docs/glossary.md.
 #pragma once
 
@@ -30,7 +30,7 @@ struct HeadingGains
   double spin_threshold;  // psi_spin, rad, spin assist starts above it, >= 0
   double spin_kp;         // K_spin, spin per rad of error above psi_spin, >= 0
   double spin_max;        // spin limit (fraction of max_thrust), >= 0
-  double spin_small_kp;   // K_s, spin per rad of error at any size, >= 0 (10.16 a)
+  double spin_small_kp;   // K_s, spin per rad of error at any size, >= 0 (10.16 b)
 };
 
 struct HeadingCommand
@@ -41,7 +41,7 @@ struct HeadingCommand
 };
 
 // PD heading control with the derivative on the measured yaw rate, plus spin
-// (differential thrust): proportional at every error size (10.16 a), with a
+// (differential thrust): proportional at every error size (10.16 b), with a
 // stronger ramp for large errors.
 class HeadingControl
 {
@@ -57,7 +57,7 @@ public:
   //                 + sign(psi~) clamp(K_spin (|psi~| - psi_spin), 0, spin_max),
   //                 +-spin_max)
   //   (10.3 b: the ramp starts at the threshold, so spin has no jump;
-  //   10.16 a: K_s psi~ turns the boat without the sideways push of the aft
+  //   10.16 b: K_s psi~ turns the boat without the sideways push of the aft
   //   pods, which damps the cross-track swing after an offset start)
   // Stateless.
   HeadingCommand compute(double desired_heading, double heading, double yaw_rate) const;

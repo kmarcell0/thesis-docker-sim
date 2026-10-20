@@ -55,7 +55,7 @@ HeadingCommand HeadingControl::compute(
     -gains_.max_steer, gains_.max_steer);
 
   // Spin: a ramp that starts at zero at psi_spin (10.3 b), plus a
-  // proportional part at every error size (10.16 a); the sum is limited.
+  // proportional part at every error size (10.16 b); the sum is limited.
   const double excess = std::abs(cmd.heading_error) - gains_.spin_threshold;
   const double ramp = std::clamp(gains_.spin_kp * excess, 0.0, gains_.spin_max);
   cmd.spin = std::clamp(
