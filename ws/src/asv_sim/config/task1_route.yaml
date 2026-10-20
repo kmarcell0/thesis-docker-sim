@@ -24,7 +24,7 @@ waypoint_follower:
     spin_threshold: 0.3         # rad, psi_spin (10.14 a)
     spin_kp: 2.0                # 1/rad, K_spin (ramp, 10.3 b; 10.14 a): spin_max at 0.5 rad
     spin_max: 0.4
-    spin_small_kp: 2.0          # 1/rad, K_s, proportional spin (10.16 a) [MEASURED
+    spin_small_kp: 2.0          # 1/rad, K_s, proportional spin (10.16 b) [MEASURED
                                 # in the M1.2f model sweep: 1.0-3.0 pass, 2.0 the middle]
     course_min_speed: 0.3       # m/s, u_min, low-speed guard of the course (M1.2f) [EST]
     # speed control [EST]

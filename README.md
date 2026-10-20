@@ -81,13 +81,13 @@ setting. Details: [`docs/design.md`](docs/design.md).
 ## Status
 
 ```
-M0 🟩🟩🟩🟩🟨 │ M1 🟩🟩⬜⬜⬜⬜⬜⬜⬜ │ M2 ⬜⬜⬜⬜⬜⬜⬜⬜ │ M3 ⬜⬜⬜⬜⬜⬜⬜⬜⬜ │ M4 ⬜ │ M6 ⬜⬜⬜
+M0 🟩🟩🟩🟩🟩 │ M1 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟨⬜ │ M2 ⬜⬜⬜⬜⬜⬜⬜⬜ │ M3 ⬜⬜⬜⬜⬜⬜⬜⬜⬜ │ M4 ⬜ │ M6 ⬜⬜⬜
 ```
 
 | Milestone | What | State |
 |---|---|---|
-| M0 | Housekeeping: docs, simulation time, toolchain, repository | in progress |
-| M1 | Drive the course on ground truth (guidance, waypoint follower, teleop) | started |
+| M0 | Housekeeping: docs, simulation time, toolchain, repository | done |
+| M1 | Drive the course on ground truth (guidance, waypoint follower, teleop) | Task 1 done (3/3 runs pass); maneuver player and teleop next |
 | M2 | From perfect to realistic sensor data (geodesy, corruptor, buoy map) | planned |
 | M3 | The EKF-SLAM filter, offline (detector, filter, replay, evaluation) | planned |
 | M4 | Live filter and RViz view | planned |
@@ -114,8 +114,26 @@ docker compose up -d
 # 3. Build our package and what it needs (not all of VRX)
 docker compose exec -T sim bash -ic "cd /ws && colcon build --symlink-install --packages-up-to asv_sim"
 
-# 4. Tests
+# 4. Tests (Python, then the C++ gtests)
 docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 -m unittest discover -s tests"
+docker compose exec -T sim bash -ic "cd /ws && colcon test --packages-select asv_sim && colcon test-result --verbose"
+```
+
+Run RoboBoat Task 1 autonomously (Gazebo + waypoint follower, one command;
+how it works: [`AUTONOMY.md`](ws/src/asv_sim/docs/AUTONOMY.md)):
+
+```bash
+docker compose exec sim bash -ic "ros2 launch asv_sim task1.launch.py"              # with the Gazebo window
+docker compose exec -d sim bash -ic "ros2 launch asv_sim task1.launch.py gui:=false > /tmp/task1.log 2>&1"
+docker compose exec -T sim bash -ic "timeout 90 ros2 topic echo /asv/autonomy/status"   # WAITING → RUNNING i/9 → FINISHED
+```
+
+Record a run and check it (bags go to `ws/data/bags/`; the full topic list is
+in `AUTONOMY.md` §7):
+
+```bash
+docker compose exec -T sim bash -ic "timeout -s INT 160 ros2 bag record --use-sim-time -o /ws/data/bags/task1_1 --topics /clock /asv/ground_truth/odom /asv/autonomy/status /asv/autonomy/cross_track_error /asv/autonomy/target /asv/thrusters/left/thrust /asv/thrusters/right/thrust"
+docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/analyze_run.py /ws/data/bags/task1_1"   # metrics.json, trajectory.png
 ```
 
 Run the simulation:
@@ -154,8 +172,11 @@ ws/                      colcon workspace, mounted at /ws in the container
   src/asv_sim/           our simulator package
     config/asv.yaml      boat description (edit this)
     models/, worlds/     generated boat model, RoboBoat 2026 course
-    launch/              sim.launch.py
-    tools/               model generator, studies, checks
+    include/asv_sim/, src/   guidance and control (ROS-free) + waypoint_follower node
+    test/                C++ gtests (incl. a closed-loop run on a 3-DOF model)
+    launch/              sim.launch.py, task1.launch.py
+    config/task1_route.yaml  Task 1 route, gains, buoys
+    tools/               model generator, studies, checks, analyze_run.py
     tests/               Python tests
   data/                  bags, run results, figures (not in git)
 ```
@@ -172,6 +193,7 @@ listed in [`docs/design.md`](docs/design.md) §12.
 | [`docs/glossary.md`](docs/glossary.md) | Symbols and plain-language terms |
 | [`docs/decision_notes.md`](docs/decision_notes.md) | Background for the decisions still open |
 | [`docs/plans/`](docs/plans/) | Brief and report of every finished step |
+| [`ws/src/asv_sim/docs/AUTONOMY.md`](ws/src/asv_sim/docs/AUTONOMY.md) | Task 1 autonomy as built: equations, parameters, results |
 | [`ws/src/asv_sim/docs/HOW_IT_WORKS.md`](ws/src/asv_sim/docs/HOW_IT_WORKS.md) | How the boat model generator works |
 | [`CLAUDE.md`](CLAUDE.md) | Working rules for the AI coding assistant used in this project |
 

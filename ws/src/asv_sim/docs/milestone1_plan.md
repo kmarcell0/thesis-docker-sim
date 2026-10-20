@@ -45,6 +45,9 @@ replace it later without touching anything else.
 
 ## 2. The route
 
+**As built (M1.6):** the current route, equations and parameters are in
+`AUTONOMY.md`; sections 2–6 below are the first proposal and its history.
+
 Course geometry (from `worlds/roboboat_course.sdf`): the boat spawns at (0, 0)
 facing east; the entry gates are at x = 5 m and x = 13 m, each a red buoy at
 y = +1.524 and a green buoy at y = −1.524 (Taylor Made Sur-Mark, radius
@@ -110,6 +113,9 @@ message.
 | out | `/asv/autonomy/cross_track_error` | std_msgs/Float64 | m, for plotting |
 
 ## 5. Algorithms
+
+**As built (M1.6):** final forms in `AUTONOMY.md` §5; this section keeps
+the proposal and the "implemented form" notes in the order they were decided.
 
 Notation: boat position $\mathbf p = (x, y)$ and heading $\psi$ in the world
 frame; forward speed $u$ and yaw rate $\omega$ in the body frame (from the odometry
@@ -177,7 +183,7 @@ $$\text{spin} = \operatorname{sign}(\tilde\psi)\,\operatorname{clamp}\big(K_\tex
 
 With K_spin = 1.0 it reaches spin_max = 0.4 at |ψ̃| = 1.2 rad.
 
-**Implemented form after M1.2f (decisions 10.13 a, 10.14 a, 10.16 a):**
+**Implemented form after M1.2f (decisions 10.13 a, 10.14 a, 10.16 b):**
 the error is taken against the **course** χ (where the boat moves), not the
 heading, with a low-speed guard u_min:
 
@@ -300,7 +306,7 @@ waypoint_follower:
     spin_threshold: 0.3         # rad, psi_spin (10.14 a)
     spin_kp: 2.0                # 1/rad, K_spin (ramp, 10.3 b; 10.14 a): spin_max at 0.5 rad
     spin_max: 0.4
-    spin_small_kp: 2.0          # 1/rad, K_s, proportional spin (10.16 a) [MEASURED
+    spin_small_kp: 2.0          # 1/rad, K_s, proportional spin (10.16 b) [MEASURED
                                 # in the M1.2f model sweep: 1.0-3.0 pass, 2.0 the middle]
     course_min_speed: 0.3       # m/s, u_min, low-speed guard of the course (M1.2f) [EST]
     # speed control
@@ -1121,6 +1127,80 @@ section 5, chosen parameters and why, measured results (table from step 5),
 known limitations. Create or update `README.md` (repo root) with the run
 command.
 - **Check:** Marcell has read it and can explain every part.
+
+#### M1.6 Brief (agreed 2026-10-20)
+- **Goal:** one as-built reference `docs/AUTONOMY.md` for the Task 1
+  autonomy, and a current `README.md` with the Task 1 run command.
+- **Choices (2026-10-20):** A a: §2–6 of this plan stay as the decision
+  history, with a pointer to AUTONOMY.md (nothing deleted). B: the guidance
+  symbols stay "proposed" (decided when App. C is written); AUTONOMY.md marks
+  them so. C: no run figure committed; AUTONOMY.md gives the command that
+  regenerates `trajectory.png`.
+- **Why:** success criterion 7 (§1). §2–6 mix the first proposal with
+  "implemented form" patches and have stale lines (§5.5 "does not exist
+  yet", §5.3 K_spin = 1.0); decision 10.16 is labelled "a" in §5.3, §6, the
+  glossary and `task1_route.yaml`, but b (proportional spin) was built. Feeds
+  App. C and Experimental Scenarios.
+- **Files:** new `docs/AUTONOMY.md` (bullets and equations only: run,
+  route, architecture, final equations next to their functions, parameter
+  table with source tags and reasons, M1.5 results, limitations, symbols);
+  `README.md` (status, Task 1 commands, layout, docs table); this plan
+  (pointers, 10.16 label); `config/task1_route.yaml` (comment only);
+  `docs/glossary.md` (10.16 label); `docs/master_plan.md`; `CLAUDE.md`. No
+  code or number change.
+- **Check:** script: every parameter value in AUTONOMY.md equals
+  `task1_route.yaml` / `asv.yaml`; equations re-read against the sources;
+  links resolve; tests unchanged (Python 44, gtests 89 / 96); the README
+  Task 1 command run once headless reaches FINISHED.
+- **Can't check:** whether the doc is clear to Marcell (the step's "done
+  when"); GitHub rendering.
+
+#### M1.6 Report (2026-10-20)
+- **What changed:**
+  - `docs/AUTONOMY.md`: new. Run command; route table; architecture and
+    topics; the final equations of `Route`, `LosGuidance`, `course_angle()`,
+    `HeadingControl`, `SpeedControl`, `mix()`, `GateMonitor`, `Follower`,
+    each next to its function; parameter table (value, unit, tag, reason,
+    decision); M1.5 results and how to reproduce them; known limitations.
+    Guidance symbols marked "proposed" (choice B).
+  - `README.md`: status bar and milestone table; Task 1 run, record and
+    analyse commands; gtest command; layout with `include/ src/ test/`,
+    `task1.launch.py`, `task1_route.yaml`; AUTONOMY.md in the docs table.
+  - This plan: "as built" pointers at §2 and §5 (choice A a); 10.16 a → b in
+    §5.3 and §6. `config/task1_route.yaml`: the same label fix (comment
+    only). `docs/glossary.md`: 10.16 a → b (2 places).
+- **How it was checked:**
+  - Script (scratchpad, not committed): all 40 values in AUTONOMY.md (30
+    parameters + W0–W9) equal `task1_route.yaml` / `asv.yaml`: "40 checked,
+    0 bad"; b_w = 0.4400 m, PASS band 0.3554 m.
+  - Results table against `ws/data/bags/task1_{1,2,3}/metrics.json`: run time
+    64.5 s, node offsets −0.0/−0.002/−0.179(−0.178)/+0.02 m, closest buoy
+    gate2_green 0.6705/0.6711/0.6706 m, max |e| 1.6447/1.6451/1.6452 m.
+  - Equations re-read against `guidance.hpp`, `control.hpp`, `mix.cpp`,
+    `gate_monitor.hpp`, `follower.hpp/.cpp` (χ, not ψ, goes into
+    `HeadingControl::compute()`: `follower.cpp` line 107-108).
+  - Relative links resolve (`ls`).
+  - Python `Ran 44 tests ... OK`; `colcon test-result --all`: 96 tests, 0
+    errors, 0 failures (gtests 6+7+27+11+15+14+9 = 89).
+  - README command `task1.launch.py gui:=false` run once headless: `GATE gate1
+    OUTBOUND offset -0.000 m PASS`, `gate2 OUTBOUND -0.002 PASS`, `gate2
+    INBOUND -0.179 PASS`, `gate1 INBOUND +0.020 PASS`, then `FINISHED`.
+- **What could not be checked:** whether the doc is clear to Marcell (the
+  step's "done when": he reads it and can explain every part); GitHub
+  rendering of the equations.
+- **Found, not changed (outside the brief):** the C++ comments still say
+  "10.16 a" (`control.hpp` 3×, `control.cpp`, `test_control.cpp`,
+  `test_closed_loop.cpp`); a comment-only fix, waits for Marcell's yes.
+- **How to read the code:** start at AUTONOMY.md §3 (the chain), then §5 in
+  order; each subsection names the function that implements it.
+- **Numbers for the thesis:** none new; AUTONOMY.md §6–7 collect the values
+  with their tags (M1.5 results [MEASURED, 2026-10-20]).
+- **Check your understanding:**
+  1. Why does the heading error use the course χ, while the D term uses the
+     yaw rate ω?
+  2. In `mix()`, which quantity survives saturation, and why that one?
+  3. Why are X_u and X_uu fine in the speed feedforward but not in the
+     filter?
 
 ### Step 7 — Maneuver player  (M1.7)
 Plays a timed list of (t, throttle, steer, spin) from YAML through `mix()`,

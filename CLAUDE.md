@@ -332,6 +332,10 @@ Update this section in the same commit as the step that changes it.
   1.60 × 0.88 m rectangle (10.9 a); crossings up to 2 m beyond a buoy are
   FAIL_OUTSIDE (10.10 a); every buoy has its own radius (10.11 b).
   `wrap_angle()` is the one wrapping helper; it moves to `asv_core` in M2.1.
+  M1.6: the as-built description (final equations, parameters, results,
+  limitations) is `ws/src/asv_sim/docs/AUTONOMY.md`; `milestone1_plan.md`
+  §2–6 are the history. Decision 10.16 is b (proportional spin); the C++
+  comments still say "10.16 a".
 - **GNSS noise bug (until step M2.2):** `asv.yaml` gives GNSS noise in metres, but
   Gazebo applies it in degrees, so the simulated GNSS noise is about 890 m.
   Don't use GNSS data recorded before M2.2.

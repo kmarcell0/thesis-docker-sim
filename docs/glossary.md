@@ -57,7 +57,7 @@ proposes, Marcell decides, and then this table is updated.
 | ψ_d, ψ̃ | desired heading and heading error ψ̃ = wrap(ψ_d − χ); with course feedback (10.13 a) the error is taken against the course χ, not ψ | rad | proposed |
 | χ, u_min | course: direction of the boat's velocity, χ = wrap(ψ + atan2(v, max(u, u_min))); u_min is the low-speed guard | rad; m/s | proposed (the sideslip atan2(v, u) has no symbol: β is the buoy bearing) |
 | K_ψ, K_ω | heading-control gains (on heading error and on yaw rate); steer is in rad | none, s | proposed (replaces K_r) |
-| ψ_spin, K_spin, K_s | spin-assist threshold, ramp gain and proportional gain: spin = clamp(K_s ψ̃ + sign(ψ̃)·clamp(K_spin(\|ψ̃\| − ψ_spin), 0, spin_max), ±spin_max) (10.3 b, 10.16 a) | rad; 1/rad; 1/rad | proposed |
+| ψ_spin, K_spin, K_s | spin-assist threshold, ramp gain and proportional gain: spin = clamp(K_s ψ̃ + sign(ψ̃)·clamp(K_spin(\|ψ̃\| − ψ_spin), 0, spin_max), ±spin_max) (10.3 b, 10.16 b) | rad; 1/rad; 1/rad | proposed |
 | ψ_turn | turn threshold: while \|ψ̃\| > ψ_turn the throttle may not be negative (decision 10.2 c) | rad | proposed |
 | u_cmd, u_ref | commanded forward speed and the segment's speed: u_cmd = min(u_ref·max(0, cos ψ̃), K_stop d_end) | m/s | proposed |
 | K_stop | gain that slows the boat near the end, u_cmd ≤ K_stop d_end | 1/s | proposed |
@@ -388,7 +388,7 @@ building the map at the same time. [slam-problem-notes]
 **Spin assist.** Turning the boat with opposite thrust on the two thrusters
 (left back, right forward turns left), used when the pods alone turn too slowly.
 From M1.2f it is also used for small errors (K_s): differential thrust turns
-the boat without the sideways push of the aft pods (10.16 a).
+the boat without the sideways push of the aft pods (10.16 b).
 
 **Static / floating model.** In Gazebo a *static* model never moves. Our buoys
 are currently *floating*: they bob on the waves and can be pushed. Neither is a
