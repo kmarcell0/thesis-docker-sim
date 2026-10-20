@@ -188,7 +188,7 @@ D11 message content) is raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M1.4): 31 Python tests, run with `unittest`; `colcon test`
+  Current baseline (M1.5): 44 Python tests, run with `unittest`; `colcon test`
   for `asv_sim` runs 89 gtests (`test_mix` 9, `test_angles` 6,
   `test_guidance` 14, `test_control` 27, `test_gate_monitor` 15,
   `test_follower` 11, `test_closed_loop` 7; `colcon test-result` counts 96,
@@ -311,8 +311,12 @@ Update this section in the same commit as the step that changes it.
   command `ros2 launch asv_sim task1.launch.py [gui:=false]
   [params_file:=...]`; stays up after FINISHED, stop with Ctrl-C). FINISHED and
   STOPPED are latched. First Gazebo run (starting gains): Task 1 done, 4/4
-  PASS, 64.5 s, one thruster in reverse in 49.8 % of commands. The teleop
-  that older docs mention was never written.
+  PASS, 64.5 s, one thruster in reverse in 49.8 % of commands. M1.5: kept
+  the starting gains (E2 a); `tools/analyze_run.py <bag>` recomputes gates,
+  clearance, cross-track and thrust metrics from a bag (writes `metrics.json`,
+  `trajectory.png`); 3 runs `ws/data/bags/task1_{1,2,3}` all pass criteria
+  2-4 (64.50 s, closest buoy 0.671 m, reverse thrust about 50 % of RUNNING
+  commands). The teleop that older docs mention was never written.
   `mix()` takes throttle and spin as fractions of `max_thrust` and keeps the
   left/right difference on saturation (decision 10.1, 2026-10-18). The LOS
   lookahead is carried along the route (10.6 a); d_end is measured along the

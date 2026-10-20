@@ -345,6 +345,12 @@ Without it, Eigen code can be many times slower, so timings would be
 meaningless.
 
 **RMSE.** Root mean square error: the square root of the average squared error.
+For the cross-track error e (M1.5): e_rms = sqrt(mean(e_k²)) over the RUNNING
+phase; unlike max |e| it says how close the boat stays on average.
+
+**rosbag2_py.** ROS 2's Python library for reading bags (part of the ROS
+install). The time stored with each message is when the recorder received it;
+with `--use-sim-time` that is simulation time. `tools/analyze_run.py` uses it.
 
 **RSS, PSS (memory).** *RSS* (resident set size): the RAM a process uses now,
 including shared libraries; its peak is `VmHWM`. *PSS*: the same, but each

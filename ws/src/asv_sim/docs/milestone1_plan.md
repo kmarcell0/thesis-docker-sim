@@ -1023,9 +1023,97 @@ time), adjust gains in the YAML, repeat. A small analysis tool
 runs can be compared objectively. Recording:
 `timeout -s INT <s> ros2 bag record --use-sim-time -o /ws/data/bags/task1_<n>
 --topics /clock /asv/ground_truth/odom /asv/autonomy/status
-/asv/autonomy/cross_track_error /asv/autonomy/target`.
+/asv/autonomy/cross_track_error /asv/autonomy/target
+/asv/thrusters/left/thrust /asv/thrusters/right/thrust` (thrust topics added
+in M1.5 for the reverse-thrust share).
 - **Check:** criteria 2–5 of section 1 met in 3 consecutive runs; final gains
   and results recorded.
+
+#### M1.5 Brief (agreed 2026-10-20)
+- **Goal:** `tools/analyze_run.py` reads a recorded Task 1 bag and prints the
+  metrics; with it, show criteria 2–5 (§1) in 3 consecutive runs.
+- **Decisions (2026-10-20):** E1 a: gate crossings, offsets and clearance are
+  recomputed in Python from `/asv/ground_truth/odom` and compared with the
+  node's `GATE ...` status lines. E2 a: keep the §6 starting gains if the 3
+  runs meet criteria 2–5; only record the results. E3 a: the tool also writes
+  `trajectory.png` (route, buoys, driven path, gate crossings) next to the bag.
+- **Why:** the M1.3/M1.4 numbers came only from the node's own log; an
+  independent check of `GateMonitor`. Feeds "Experimental Scenarios"; the tool
+  grows into `asv_eval` (M3.6).
+- **New ideas:** rosbag2_py (ROS's Python bag reader; with `--use-sim-time`
+  the stored times are simulation time); RMS cross-track error.
+- **Files:** new `tools/analyze_run.py` (pure functions separate from bag I/O;
+  writes `metrics.json` and `trajectory.png` into the bag folder, `ws/data/`),
+  new `tests/test_analyze_run.py`; this plan, `docs/master_plan.md`,
+  `CLAUDE.md`, `docs/glossary.md`. No CMake or `package.xml` change.
+- **How it works:** buoys, gates, `gate_margin`, `gate_capture` from
+  `task1_route.yaml`; L and b_w from `boat_params()` (`task1.launch.py`).
+  Run time: first `RUNNING` → `FINISHED` (bag time). Gates and clearance: §5.6
+  on consecutive odometry poses (50 Hz). Cross-track: max |e| and
+  e_rms = sqrt(mean(e_k²)) over RUNNING. Thrust: reverse share = fraction of
+  commands with min(F_L, F_R) < 0, smallest thrust, thrust 0 after FINISHED.
+  Python offset minus node offset per gate event.
+- **Check:** unittests on hand-made cases (the `test_gate_monitor` cases);
+  Python 31 + new, gtests 89 unchanged; the tool on `m1_3_check` gives the
+  node's offsets within a few mm; 3 headless runs `task1_1..3`, each 4/4 PASS,
+  clearance ≥ 0.5 m, no collision, FINISHED with thrust 0.
+- **Can't check:** the Gazebo window; the PNG is for Marcell to look at.
+
+#### M1.5 Report (2026-10-20)
+- **What changed:**
+  - `tools/analyze_run.py`: new. Reads a bag (rosbag2_py), recomputes gate
+    events and per-buoy clearance from `/asv/ground_truth/odom` with the §5.6
+    equations (`gate_crossing()`, `clearance()`), compares offsets with the
+    node's `GATE` lines, computes run time, max |e| and e_rms, reverse-thrust
+    share, thrust after FINISHED; prints criteria 2–4, writes `metrics.json`
+    and `trajectory.png` into the bag folder (or `--out`). Exit code 1 if a
+    criterion fails. Boat size via `boat_params()` of `task1.launch.py`.
+  - `tests/test_analyze_run.py`: new, 13 unittests (the `test_gate_monitor`
+    gate and clearance cases, order check, RMS, reverse share, yaw, status
+    parsing).
+  - Step 5 recording command above: two thrust topics added.
+  - `docs/glossary.md`: RMSE (cross-track RMS), rosbag2_py. `CLAUDE.md`:
+    Known state, Python baseline 44.
+- **How it was checked:**
+  - Python: `Ran 44 tests ... OK` (31 + 13). `colcon test-result --all`:
+    96 tests, 0 errors, 0 failures (89 gtests unchanged; no C++ change).
+  - Tool on the M1.3 bag `m1_3_check`: run time 64.50 s; offsets −0.000,
+    −0.000, −0.178, +0.020 m, all PASS; largest |recomputed − node| offset
+    0.0005 m (the node prints 3 decimals); closest buoy gate2_green
+    0.671 m; reverse share 49.8 % of 1290 RUNNING commands, smallest
+    −23.0 N: the same numbers as the M1.3 report.
+  - 3 headless runs (`task1.launch.py gui:=false` + `ros2 bag record
+    --use-sim-time`, 160 s each), starting gains of §6:
+
+    | Run | Time [s] | gate1 OUT | gate2 OUT | gate2 IN | gate1 IN | Closest buoy [m] | max \|e\| [m] | e_rms [m] | Reverse [%] | Min F [N] | Criteria 2–4 |
+    |---|---|---|---|---|---|---|---|---|---|---|---|
+    | task1_1 | 64.50 | −0.000 | −0.002 | −0.179 | +0.020 | 0.671 (gate2_green) | 1.645 | 0.514 | 50.4 | −22.9 | all OK |
+    | task1_2 | 64.50 | −0.000 | −0.002 | −0.178 | +0.020 | 0.671 (gate2_green) | 1.645 | 0.514 | 50.2 | −23.0 | all OK |
+    | task1_3 | 64.50 | −0.000 | −0.002 | −0.179 | +0.020 | 0.671 (gate2_green) | 1.645 | 0.514 | 50.4 | −23.0 | all OK |
+
+    Gate offsets in m, all PASS (band ±0.355 m). Thrust after FINISHED 0.0 N
+    in all runs. Node vs. recomputed offsets ≤ 0.0005 m. Criterion 5
+    (3 consecutive runs) holds, so no gain change (E2 a).
+- **What could not be checked:** the Gazebo window. `trajectory.png` in
+  each bag folder (`ws/data/bags/task1_1/trajectory.png`): I opened it and
+  it shows the route, buoys, path and the four crossings; Marcell should look
+  at it too. The "% of all commands" share depends on how long the recorder
+  ran (34.0 % in M1.3, 22.7 % here), so only the RUNNING share is meaningful.
+- **How to read the code:** `main()` → `read_bag()` → `analyze()`.
+  `gate_crossing()` = §5.6 crossing, offset o and band (same order as
+  `GateMonitor::update()`); `clearance()` = c_j = |d − k| − r_j;
+  `rms()` = e_rms; `reverse_share()`; `parse_status()` reads the node's lines.
+- **Numbers for the thesis:** Task 1, starting gains, 3 Gazebo runs:
+  run time 64.50 s, closest buoy 0.671 m, max |e| 1.645 m, e_rms 0.514 m,
+  reverse thrust 50.2–50.4 % of RUNNING commands, smallest thrust −23.0 N,
+  gate offsets above [MEASURED, 2026-10-20]. Runs differ by at most 1 mm in
+  the offsets: the simulation is nearly, not exactly, repeatable.
+- **Check your understanding:**
+  1. Why is it useful that the tool recomputes the gate offsets instead of
+     reading them from the node, if both use the same equations?
+  2. Odometry comes at 50 Hz, the monitor in the node samples at 20 Hz. Which
+     one can give a smaller closest-buoy distance, and why?
+  3. Why is the reverse share counted only over the RUNNING commands?
 
 ### Step 6 — Documentation  (M1.6)
 `ws/src/asv_sim/docs/AUTONOMY.md`: route, architecture, the equations of
