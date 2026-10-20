@@ -945,6 +945,77 @@ steering values read from `config/asv.yaml`; sets `use_sim_time` for all nodes
 - **Check:** `ros2 launch asv_sim task1.launch.py gui:=false` runs the
   whole task; the log shows the gate events and `FINISHED`.
 
+#### M1.4 Brief (agreed 2026-10-20)
+- **Goal:** `ros2 launch asv_sim task1.launch.py [gui:=false]
+  [params_file:=...]` starts Gazebo, bridge, static TFs and
+  `waypoint_follower`, the boat values read from `config/asv.yaml`.
+- **Decisions (2026-10-20):** L1 b: arguments `gui` (passed to
+  `sim.launch.py`) and `params_file` (default `config/task1_route.yaml`).
+  L2 a: after FINISHED everything keeps running (stop with Ctrl-C); the
+  follower keeps publishing zero thrust.
+- **Why:** repeatable start for M1.5 and later recordings; success
+  criterion 1 (§1); removes the hand-typed `-p` copies of `asv.yaml` (10.8 a).
+- **New ideas:** OpaqueFunction (plain Python at launch time).
+- **Files:** new `launch/task1.launch.py` (with a plain function
+  `boat_params()`), new `tests/test_task1_launch.py`;
+  `config/task1_route.yaml` (comment only); this plan, `docs/master_plan.md`,
+  `CLAUDE.md`, `docs/glossary.md`. No CMake or `package.xml` change.
+- **How it works:** `SetParameter(use_sim_time)`, include `sim.launch.py`,
+  then `waypoint_follower` with `params_file` plus `boat_params(asv.yaml)`:
+  drag_linear = xU, drag_quadratic = xUU, max_thrust, min_thrust,
+  steer_limit, boat_length = hull.length, boat_half_width = hull.spacing/2 +
+  hull.radius (same formulas as `test/boat_model.hpp`).
+- **Check:** build without warnings; Python tests (29 + new); 89 gtests
+  unchanged; headless run with `timeout -s INT` shows WAITING → RUNNING →
+  four gate events → FINISHED; `ros2 param get` boat_half_width 0.44 and
+  use_sim_time true.
+- **Can't check:** the Gazebo window with `gui:=true`.
+
+#### M1.4 Report (2026-10-20)
+- **What changed:**
+  - `launch/task1.launch.py`: new. Sets `use_sim_time`, includes
+    `sim.launch.py` (`gui` passed through), starts `waypoint_follower` with
+    `params_file` (default `config/task1_route.yaml`) plus `boat_params()`.
+    `boat_params()` reads asv.yaml: drag_linear = xU, drag_quadratic = xUU,
+    max_thrust, min_thrust, steer_limit, boat_length = hull.length,
+    boat_half_width = hull.spacing/2 + hull.radius. A missing key raises.
+  - `tests/test_task1_launch.py`: new, 2 unittests (the seven values from
+    asv.yaml; a missing key raises KeyError).
+  - `config/task1_route.yaml`: header comment only.
+  - `docs/glossary.md`: launch file, OpaqueFunction.
+- **How it was checked:**
+  - `colcon build --symlink-install --packages-up-to asv_sim`: finished,
+    no warnings; `task1.launch.py` linked into the install space.
+  - Python: `Ran 31 tests ... OK` (29 + 2). `colcon test-result`: 96 tests,
+    0 errors, 0 failures (89 gtests unchanged).
+  - `ros2 launch asv_sim task1.launch.py gui:=false` (headless, one
+    command): `ros2 param get` on `/waypoint_follower`: boat_half_width 0.44,
+    drag_linear 4.0, use_sim_time True; `/asv_bridge` use_sim_time True.
+  - Log: `WAITING` → `RUNNING 1/9`; gate1 OUTBOUND −0.002 m PASS, gate2
+    OUTBOUND −0.004 m PASS, RUNNING 2/9 … 9/9, gate2 INBOUND −0.178 m PASS,
+    gate1 INBOUND +0.021 m PASS, `FINISHED`, closest buoy gate2_green
+    0.672 m, collision no.
+- **What could not be checked:** the Gazebo window (`gui:=true`; Marcell:
+  run `ros2 launch asv_sim task1.launch.py` in his terminal and watch the
+  boat). The run time in simulation time: the log stamps are wall time
+  (RUNNING → FINISHED 71.2 s wall; at a real-time factor of about 0.85 that
+  fits M1.3's 64.5 s of simulation time, but it was not measured). M1.5's
+  bag and `analyze_run.py` will give it. `params_file:=` with another file
+  was not run (only the default).
+- **How to read the code:** `task1.launch.py`: `generate_launch_description()`
+  (arguments, use_sim_time, include), then `_launch_setup()` (reads asv.yaml,
+  starts the node), then `boat_params()` (the seven values).
+- **Numbers for the thesis:** none new. Second Gazebo run, starting gains:
+  gate offsets above, closest buoy 0.672 m [MEASURED, one run, 2026-10-20];
+  M1.3 gave 0.671 m.
+- **Check your understanding:**
+  1. Why are the boat values computed in the launch file instead of being
+     written into `task1_route.yaml`?
+  2. The follower and Gazebo start at the same moment. What stops the
+     follower from steering before Gazebo publishes the first pose?
+  3. If two parameter sources set the same name (params file and
+     `boat_params()`), which one wins, and why does that not matter here?
+
 ### Step 5 — Tuning and evaluation  (M1.5)
 Run, read the log (gate offsets, minimum buoy distance, cross-track error,
 time), adjust gains in the YAML, repeat. A small analysis tool

@@ -3,7 +3,7 @@
 # Every value is required (the node has no defaults in code). The boat's own
 # values (drag_linear, drag_quadratic, max_thrust, min_thrust, steer_limit,
 # boat_length, boat_half_width) are NOT here: they come from config/asv.yaml
-# (passed by task1.launch.py from M1.4 on; by hand with -p before that).
+# (passed by launch/task1.launch.py).
 waypoint_follower:
   ros__parameters:
     odom_topic: /asv/ground_truth/odom

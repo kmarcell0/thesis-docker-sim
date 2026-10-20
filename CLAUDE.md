@@ -188,7 +188,7 @@ D11 message content) is raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M1.3): 29 Python tests, run with `unittest`; `colcon test`
+  Current baseline (M1.4): 31 Python tests, run with `unittest`; `colcon test`
   for `asv_sim` runs 89 gtests (`test_mix` 9, `test_angles` 6,
   `test_guidance` 14, `test_control` 27, `test_gate_monitor` 15,
   `test_follower` 11, `test_closed_loop` 7; `colcon test-result` counts 96,
@@ -306,8 +306,10 @@ Update this section in the same commit as the step that changes it.
   First node (M1.3): `waypoint_follower` (`src/waypoint_follower.cpp`, I/O
   only), parameters in `config/task1_route.yaml`, all required (no defaults
   in code); the boat values (`drag_linear`, `drag_quadratic`, `max_thrust`,
-  `min_thrust`, `steer_limit`, `boat_length`, `boat_half_width`) are passed
-  with `-p` until M1.4's launch file reads them from `asv.yaml`. FINISHED and
+  `min_thrust`, `steer_limit`, `boat_length`, `boat_half_width`) are read
+  from `asv.yaml` by `launch/task1.launch.py` (M1.4: `boat_params()`; one
+  command `ros2 launch asv_sim task1.launch.py [gui:=false]
+  [params_file:=...]`; stays up after FINISHED, stop with Ctrl-C). FINISHED and
   STOPPED are latched. First Gazebo run (starting gains): Task 1 done, 4/4
   PASS, 64.5 s, one thruster in reverse in 49.8 % of commands. The teleop
   that older docs mention was never written.

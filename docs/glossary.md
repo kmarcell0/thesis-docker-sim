@@ -271,6 +271,11 @@ linearise. We check each one against a numerical derivative.
 **Joseph form.** A way of writing the covariance update that keeps P symmetric
 and positive despite rounding errors.
 
+**Launch file, OpaqueFunction.** A *launch file* (Python) starts several ROS
+nodes and Gazebo with one command and gives them their parameters. An
+*OpaqueFunction* runs plain Python while the launch starts, e.g. to read
+`asv.yaml` and compute values before a node starts.
+
 **Latched topic.** A topic whose last message is kept and delivered to
 subscribers that join later, but only if the subscriber also asks for it (QoS
 durability "transient local"; in RViz, set the display's Durability to Transient
