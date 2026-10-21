@@ -9,7 +9,7 @@ a reason), **[REPO]** this repository, **[SRC]** Gazebo or ROS source code,
 
 Decisions D1-D18 are in the master plan, section 3. Marcell decided most of them
 on 2026-10-11; what follows from them is written here as rules. Where a design
-still depends on an open decision (D6, D10, the IMU message content of D11),
+still depends on an open decision (D6, D10),
 the recommended option is described and the decision ID is given; that part is a
 proposal, not a rule, until Marcell decides.
 
@@ -53,7 +53,7 @@ publish-time stamps [SRC AP_DDS], so the real boat needs a small converter node
 | `/asv/gnss/fix` | sensor_msgs/NavSatFix | 10 Hz [REPO] | bridge | clean |
 | `/asv/gnss/secondary/fix` | sensor_msgs/NavSatFix | 10 Hz [REPO] | bridge | clean (only for checks) |
 | `/asv/lidar/points` | sensor_msgs/PointCloud2 | 10 Hz [REPO] | bridge | clean |
-| `/asv/sensors/imu/data` | sensor_msgs/Imu | 200 Hz | corruptor | realistic; what it carries is D11 (§4.1) |
+| `/asv/sensors/imu/data` | sensor_msgs/Imu | 200 Hz | corruptor | realistic; raw gyro and accel, no orientation (D11, §4.1) |
 | `/asv/sensors/gnss/fix` | sensor_msgs/NavSatFix | 10 Hz | corruptor | realistic |
 | `/asv/sensors/gnss/heading` | asv_msgs/GnssHeading | 10 Hz | corruptor | realistic |
 | `/asv/sensors/gnss/velocity` | geometry_msgs/TwistWithCovarianceStamped (ENU) | 10 Hz | corruptor | realistic (D5 C: prediction input) |
@@ -170,7 +170,7 @@ multipliers, schedules, overrides and the seed.
   D11): the accelerometer density at ArduPilot's ±32 g range is 110 µg/√Hz
   (1.079e-3 m/s²/√Hz, DS-000577 Table 2), awaiting Marcell's OK; and TDK's own
   definition of the density gives a per-sample σ √2 smaller than this rule. The
-  M2.5 brief settles the convention; the η²·f_fuse rule below follows it.
+  M2.5 brief settles the convention.
 - The clean IMU topic still carries Gazebo's own IMU noise until M2.2 switches
   it off, so M2.2 comes before the IMU corruptor is tested.
 - **Turn-on bias**: one draw per run [EST, `asv.yaml`]: gyro σ = 0.0017 rad/s,
@@ -183,23 +183,18 @@ multipliers, schedules, overrides and the seed.
   e^(−dt/T_c)·b(k) + σ_ss·√(1 − e^(−2dt/T_c))·w(k), with w a standard normal draw.
   Steady-state σ_ss [EST, `asv.yaml`]: gyro 0.0002 rad/s (about 41 °/h),
   accelerometer 0.005 m/s²; T_c = 300 s.
-- **What the message carries** (D11, open; options in `decision_notes.md`).
-  Marcell's direction: it should "follow real world scenarios", i.e. imitate the
-  real boat's ArduPilot IMU topic. Proposal (option A): gyro and accelerometer
-  with the noise above, then ArduPilot's processing as noise-profile switches
-  (low-pass 4 Hz gyro / 10 Hz accel with Rover defaults, values held at the 50 Hz
-  loop, stamp = publish time [SRC ArduPilot AP_DDS, AP_InertialSensor]; levels
-  ideal / tuned / Rover default). Orientation is not published
-  (`orientation_covariance[0] = −1`, "not available"), because the real
-  message's yaw is EKF3's, which with GPS-for-yaw contains the same dual-antenna
-  heading the filter already uses. Roll and pitch get their own message only if
-  something needs them (D5 a, D15 b, M5); their error is [EST], since no
-  published ArduPilot attitude accuracy was found. Whatever D11 decides, no
-  output carries the true yaw (unit test).
-- **Filter noise from the noise density**: if the stream is low-passed and held,
-  the filter's gyro noise must come from the density and the rate it fuses at
-  (variance = η²·f_fuse), not from the spread of the samples, and repeated
-  samples are skipped.
+- **What the message carries** (D11, decided 2026-10-21: raw IMU without
+  ArduPilot processing). Gyro and accelerometer at 200 Hz with the noise above,
+  stamped at measurement time. Orientation is not published
+  (`orientation_covariance[0] = −1`, "not available"); there is no roll/pitch
+  message. No output carries the true yaw (unit test).
+- **Left out (D11)**: the real boat's ArduPilot IMU topic is low-passed (Rover
+  default 4 Hz gyro, 10 Hz accel), held at the 50 Hz loop and stamped at
+  publish time, so the gyro is about 66 ms older than its stamp [SRC ArduPilot
+  AP_DDS, AP_InertialSensor; details in `decision_notes.md` D11]. The simulated
+  IMU has none of this; a limitation for the thesis. Optional M7.8 adds it as
+  noise-profile switches; the filter would then take its gyro noise from the
+  density and the fused rate (variance = η²·f_fuse) and skip repeated samples.
 - The corruptor logs every true bias value, so trajectory.csv can hold them
   whatever D5 decides.
 
@@ -352,7 +347,7 @@ Lives in the ROS-free package `asv_core` (D13 a); `slam_node` and
     the measurement covariance and stated as a limitation.
   - D15 b (3D lever arm): h(ξ) = [x, y]ᵀ + [R_z(ψ)·R_y(θ)·R_x(φ)·l]₁,₂ with
     l = (−0.76, −0.33, 0.185) m and φ, θ from the corruptor's separate roll/pitch
-    message (made only if something needs it, D11, §4.1) treated as known inputs. Then attitude errors also enter the GNSS update, and the draft's
+    message (not made now: D11, §4.1; it would be needed for D15 b) treated as known inputs. Then attitude errors also enter the GNSS update, and the draft's
     Planar Motion section must say so.
   - Either way the Jacobian includes the ∂/∂ψ term from the lever arm.
     Measurement covariance: per D6 (open). With D6 a, NavSatFix covariance ×
@@ -508,7 +503,7 @@ GNSS outage).
 | Factor | Levels |
 |---|---|
 | GNSS mode | RTK fixed, float, standalone; outages of [EST] 10 / 30 / 60 s |
-| IMU | nominal, 2×, 5× (white noise and bias together), CV7-like bias (below). With D5 C only the gyro matters (§6.1). If D11 A: also the processing level ideal / tuned / Rover default. |
+| IMU | nominal, 2×, 5× (white noise and bias together), CV7-like bias (below). With D5 C only the gyro matters (§6.1). (The ArduPilot processing levels only with optional M7.8.) |
 | Detector | σ_r and σ_β × 1, 2, 5; P_miss; false-alarm rate; colour error |
 | Waves (D9) | wave gain 0 / 0.1 / 0.3 (each needs a new recording) |
 
@@ -533,7 +528,7 @@ Package names follow D13 a (decided 2026-10-11).
 | Package | Kind | Contains | Depends on |
 |---|---|---|---|
 | `asv_core` (new, D13) | ament_cmake, no ROS | geodesy, noise models, fake detector logic, measurement queue, EKF-SLAM, data association, ellipse helper; gtest | Eigen |
-| `asv_msgs` (new) | ament_cmake + rosidl | BuoyDetection(Array), Landmark(Array), GnssHeading, SensorStatus; a roll/pitch message only if D11 needs one | |
+| `asv_msgs` (new) | ament_cmake + rosidl | BuoyDetection(Array), Landmark(Array), GnssHeading, SensorStatus; no roll/pitch message (D11) | |
 | `asv_sim` (exists) | ament_cmake | world, models, generator, launch, guidance (M1), follower, player, teleop, corruptor node, fake detector node, ground-truth tools | asv_core, asv_msgs |
 | `asv_perception` (new, only if time: D8) | ament_cmake | lidar clustering, colour classification, fusion | asv_core, asv_msgs |
 | `asv_slam` (new) | ament_cmake | slam_node, slam_replay | asv_core, asv_msgs (not asv_sim) |
@@ -542,6 +537,8 @@ Package names follow D13 a (decided 2026-10-11).
 Custom messages get their own package because that is ROS 2 best practice: the
 real-boat code and the Python tools can then use them without the simulator. (An
 ament_python package such as asv_eval can't define messages itself.)
+`asv_core` has its own plain structs (as M1's `NavState`); the nodes convert
+between them and the `asv_msgs` / ROS types, so `asv_core` stays ROS-free.
 
 Configuration map:
 
@@ -779,4 +776,5 @@ the project root, like `docker compose`.)
   every 6 ms (about 167 Hz) but only gets new data at the main loop rate, 50 Hz
   by default on a Rover, so it repeats values unless `SCHED_LOOP_RATE` is raised;
   Rover's default low-pass filters (4 Hz gyro, 10 Hz accel) add about 56 and
-  22 ms of delay [SRC ArduPilot AP_DDS, AP_InertialSensor]. See D11.
+  22 ms of delay [SRC ArduPilot AP_DDS, AP_InertialSensor]. See D11 (left out of the
+  simulation, optional M7.8).

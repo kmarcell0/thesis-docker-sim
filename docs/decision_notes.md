@@ -221,6 +221,13 @@ Question:
 
 ## D11. What the corrupted IMU message carries
 
+**Decided 2026-10-21: raw IMU without ArduPilot processing.** Gyro and accel at
+200 Hz with datasheet noise and biases, stamped at measurement time, no
+orientation, no roll/pitch message. The ArduPilot processing below is left out
+(a limitation) and kept as optional M7.8. Marcell: "Cant we just leave it out?
+is it neccesary for out experiments?" Questions 8 and 9 are still open; the
+M2.6a brief raises them. The notes below are the background.
+
 You decided: "Corrupted IMU messages should follow real world scenarios". So the
 question became: what does the **real** IMU message on the boat look like? Read in
 ArduPilot's source code (AP_DDS, Rover 4.6.3, 4.7.1 and master, 2026-10-11) [SRC]:

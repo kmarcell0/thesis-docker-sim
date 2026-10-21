@@ -151,8 +151,8 @@ stop and summarise in two lines.
 
 ## Decisions
 - The decisions are in `docs/master_plan.md` section 3. Marcell decided most
-  of them on 2026-10-11; the open ones (D6, D10, the IMU message content of
-  D11) are explained in `docs/decision_notes.md`. Marcell decides; you explain
+  of them on 2026-10-11 (D5 on 2026-10-14, D11 on 2026-10-21); the open ones
+  (D6, D10) are explained in `docs/decision_notes.md`. Marcell decides; you explain
   the options and recommend one.
 - Record his answer in the Status column: `decided: <option>, <date>: <his reason,
   in his words>`. When all decisions of a `[?]` step are made, change it to `[ ]`.
@@ -176,8 +176,8 @@ stop and summarise in two lines.
 
 ## Conventions
 Rules marked with a decision follow Marcell's choice as recorded in
-`docs/master_plan.md` section 3. A rule tied to an open decision (D6, D10, the
-D11 message content) is raised in the brief.
+`docs/master_plan.md` section 3. A rule tied to an open decision (D6, D10) is
+raised in the brief.
 
 - **C++** nodes: C++17, rclcpp. Nodes only do I/O; the logic (maths, models,
   filter) is ROS-free so it can be unit tested. It lives in the new `asv_core`
@@ -356,8 +356,10 @@ Update this section in the same commit as the step that changes it.
   Gazebo applies it in degrees, so the simulated GNSS noise is about 890 m.
   Don't use GNSS data recorded before M2.2.
 - Gazebo's IMU orientation is perfect (no noise). Never feed it to a filter. The
-  corruptor's IMU message imitates the real boat's IMU topic (D11) and never
-  carries the true yaw.
+  corruptor's IMU message (D11, 2026-10-21) is a raw 200 Hz gyro and accel
+  with noise and biases, stamped at measurement time, without orientation; it
+  never carries the true yaw. ArduPilot's processing (low-pass, 50 Hz hold,
+  publish-time stamp) is left out (optional M7.8).
 - Drag model (xU=4, xUU=6) matches Gazebo almost exactly (Step 1 actuator
   check): 10 N → 1.00 m/s, 20 N → 1.52 m/s, 40 N → 2.27 m/s, all <0.1%
   error. These are Gazebo's own numbers: fine for the controller's feedforward,
