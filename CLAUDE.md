@@ -188,11 +188,11 @@ raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M1.8): 56 Python tests, run with `unittest`; `colcon test`
-  for `asv_sim` runs 109 gtests (`test_mix` 9, `test_angles` 6,
-  `test_guidance` 14, `test_control` 27, `test_gate_monitor` 15,
+  Current baseline (M1.9): 56 Python tests, run with `unittest`; `colcon test`
+  for `asv_sim` runs 110 gtests (`test_mix` 9, `test_angles` 6,
+  `test_guidance` 15, `test_control` 27, `test_gate_monitor` 15,
   `test_follower` 11, `test_closed_loop` 7, `test_maneuver` 8,
-  `test_maneuver_files` 3, `test_teleop` 9; `colcon test-result` counts 119,
+  `test_maneuver_files` 3, `test_teleop` 9; `colcon test-result` counts 120,
   the extra ten are CTest's wrappers, one per gtest binary).
   Report both numbers after every step.
 - **Python 3** for tools, launch files and offline analysis.
@@ -317,7 +317,10 @@ Update this section in the same commit as the step that changes it.
   clearance, cross-track and thrust metrics from a bag (writes `metrics.json`,
   `trajectory.png`); 3 runs `ws/data/bags/task1_{1,2,3}` all pass criteria
   2-4 (64.50 s, closest buoy 0.671 m, reverse thrust about 50 % of RUNNING
-  commands).
+  commands). M1.9: on a waypoint switch `Route::update()` measures s and e
+  again on the new segment (before, LOS and d_end used the old segment's
+  values for one tick); 3 new runs `ws/data/bags/task1_m19_{1,2,3}`: 64.60 s,
+  closest buoy 0.674–0.675 m, all PASS (`AUTONOMY.md` §7).
   `mix()` takes throttle and spin as fractions of `max_thrust` and keeps the
   left/right difference on saturation (decision 10.1, 2026-10-18). The LOS
   lookahead is carried along the route (10.6 a); d_end is measured along the

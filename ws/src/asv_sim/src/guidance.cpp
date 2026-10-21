@@ -32,7 +32,7 @@ Route::Route(std::vector<Point2> waypoints, double switch_distance)
   }
 }
 
-void Route::update(const Point2 & p)
+void Route::measure(const Point2 & p)
 {
   // s = (p - W_i) . t_i and e = (p - W_i) . n_i with n_i = (-t_y, t_x), the
   // left normal (milestone1_plan.md 5.1).
@@ -41,13 +41,21 @@ void Route::update(const Point2 & p)
   const double rx = p.x - w.x, ry = p.y - w.y;
   along_ = rx * t.x + ry * t.y;
   cross_ = -rx * t.y + ry * t.x;
+}
+
+void Route::update(const Point2 & p)
+{
+  measure(p);
 
   // "Passed along the path" test: unlike a distance circle it fires even if
   // the waypoint was missed sideways.
   if (along_ >= length_[segment_] - switch_distance_) {
     if (segment_ + 1 < length_.size()) {
       ++segment_;
-      // s and e on the new segment are computed on the next call.
+      // Measure again on the new segment, so LOS and d_end in this same
+      // control step don't use the old segment's s and e (M1.9). No second
+      // switch test here: at most one switch per update.
+      measure(p);
     } else {
       finished_ = true;
     }

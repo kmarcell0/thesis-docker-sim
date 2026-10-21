@@ -106,6 +106,8 @@ s = (\mathbf p - W_i)\cdot\hat t,\quad e = (\mathbf p - W_i)\cdot\hat n$$
 
 - e > 0: boat left of the path.
 - Switch to segment i+1 when s ≥ ℓ_i − R_switch; at most one switch per step.
+  After a switch, s and e are measured again on the new segment, so LOS and
+  d_end in the same step use the new segment (M1.9).
   On the last segment the same test sets FINISHED (10.7 a).
 - Distance left along the route — `Route::remaining_distance()`:
 
@@ -218,7 +220,7 @@ no defaults in code.
 |---|---|---|---|---|---|
 | `control_rate` | | 20.0 | Hz | [EST] | control loop rate (§3 of the plan); odometry arrives at 50 Hz |
 | `start_delay` | | 3.0 | s | [EST] | boat settles on the water after spawn |
-| `max_run_time` | | 180.0 | s | [EST] | safety stop; the measured run takes 64.5 s |
+| `max_run_time` | | 180.0 | s | [EST] | safety stop; the measured run takes 64.6 s |
 | `odom_timeout` | | 0.5 | s | [EST] | safety stop; = 25 odometry periods at 50 Hz |
 | `speeds` | u_ref | 1.0, 0.6 × 6, 0.8, 1.0 | m/s | [EST] | slow in the teardrop turn, faster on the straight legs |
 | `switch_distance` | R_switch | 1.5 | m | [EST] | about one boat length |
@@ -253,20 +255,23 @@ From `config/asv.yaml` via `boat_params()` (`launch/task1.launch.py`):
 | `hull.length` | L | 1.60 | m | [REPO] |
 | spacing/2 + radius | b_w | 0.33 + 0.11 = 0.44 | m | [REPO] |
 
-## 7. Results (M1.5, 2026-10-20)
+## 7. Results (M1.9, 2026-10-21)
 
-Three headless Gazebo runs, parameters of §6 [MEASURED]:
+Three headless Gazebo runs, parameters of §6, after the waypoint-switch fix
+(M1.9) [MEASURED]:
 
 | Run | Time [s] | gate1 OUT | gate2 OUT | gate2 IN | gate1 IN | Closest buoy [m] | max \|e\| [m] | e_rms [m] | Reverse [%] | Min F [N] |
 |---|---|---|---|---|---|---|---|---|---|---|
-| task1_1 | 64.50 | −0.000 | −0.002 | −0.179 | +0.020 | 0.671 (gate2_green) | 1.645 | 0.514 | 50.4 | −22.9 |
-| task1_2 | 64.50 | −0.000 | −0.002 | −0.178 | +0.020 | 0.671 (gate2_green) | 1.645 | 0.514 | 50.2 | −23.0 |
-| task1_3 | 64.50 | −0.000 | −0.002 | −0.179 | +0.020 | 0.671 (gate2_green) | 1.645 | 0.514 | 50.4 | −23.0 |
+| task1_m19_1 | 64.60 | −0.000 | −0.002 | −0.175 | +0.022 | 0.674 (gate2_green) | 1.668 | 0.518 | 50.0 | −22.7 |
+| task1_m19_2 | 64.60 | −0.000 | −0.002 | −0.175 | +0.021 | 0.675 (gate2_green) | 1.668 | 0.518 | 50.0 | −22.7 |
+| task1_m19_3 | 64.60 | −0.000 | −0.002 | −0.175 | +0.021 | 0.675 (gate2_green) | 1.669 | 0.518 | 50.0 | −22.7 |
 
 - Gate offsets o in m, all PASS (band ±0.3554 m). Thrust after FINISHED 0.0 N.
 - "Reverse": share of RUNNING commands with min(T_L, T_R) < 0.
 - Node offsets vs. offsets recomputed from the bag: ≤ 0.0005 m.
 - Runs differ by ≤ 1 mm: nearly, not exactly, repeatable.
+- Before the fix (M1.5, bags `task1_{1,2,3}`): 64.50 s, closest buoy 0.671 m,
+  max |e| 1.645 m, e_rms 0.514 m (`milestone1_plan.md` Step 5).
 
 Reproduce (bag and figures go to `ws/data/`, never committed):
 

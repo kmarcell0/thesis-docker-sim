@@ -137,7 +137,8 @@ left of the path). **Switching:** go to the next segment when
 $s \ge \ell_i - R_\text{switch}$ (the boat has reached or passed the waypoint
 *along the path*). This "passed" test, unlike a pure distance circle, can never
 make the boat circle a waypoint it missed by a little.
-At most one switch per control step. On the last segment the same test ends
+At most one switch per control step; after a switch, s and e are measured
+again on the new segment (M1.9). On the last segment the same test ends
 the route (FINISHED, decision 10.7 a). The distance left to W_{n_w} is measured
 along the route: $d_\text{end} = (\ell_i - s) + \sum_{j>i} \ell_j$.
 
@@ -1489,6 +1490,86 @@ from a launch file. Never runs together with the follower or player.
    2. What would happen to the zero command if rclcpp's own Ctrl-C handler
       were left on?
    3. Why does one S after many W presses give 0.9 and not more?
+
+### Step 9 — Waypoint-switch fix  (M1.9)
+Found by the 2026-10-20 review (A1, A2): on the tick of a waypoint switch,
+`Route::update()` left s and e of the old segment in place, so LOS, d_end and
+the published e used them on the new segment for one tick. Marcell
+(2026-10-21): fix now and rerun Task 1.
+- **Check:** a gtest on the switch tick; all tests; 3 headless Task 1 runs.
+
+#### M1.9 Brief (agreed 2026-10-21)
+- **Goal:** on the switch tick, LOS and d_end use s and e measured on the new
+  segment.
+- **Why:** one wrong ψ_d per switch (8 in Task 1; LOS target 2–4 m ahead,
+  d_end 2–17 m too small, as computed in the critique); the Task 1 numbers in
+  the thesis should come from correct code. Experimental Scenarios; App. C.
+- **Files:** `src/guidance.cpp` (`Route::update()`), `guidance.hpp` (comment),
+  `test/test_guidance.cpp` (new `SwitchTickUsesNewSegment`), this section and
+  one sentence in §5.1, `AUTONOMY.md` §7 (new numbers), `CLAUDE.md` (Known
+  state, test baseline 109 → 110), `docs/master_plan.md` (mark). Old M1.5
+  reports stay as history.
+- **How:** after `++segment_`, s = (p − W_{i+1})·t̂_{i+1},
+  e = (p − W_{i+1})·n̂_{i+1}; s is then usually slightly negative (correct for
+  LOS, which clamps with max(0, s + Δ), and for d_end). At most one switch per
+  update stays (segment 3→4 is 3.04 m < 2 R_switch).
+- **Check:** gtest: from segment 0, p = (16, 0) switches to segment 1 with
+  s = −0.894 m, e = +0.447 m, target W1 + 2.106 t̂₁, and target, d_end, e
+  equal to a second `update(p)`; fails before the fix. All gtests (110) and
+  56 Python tests. 3 headless runs `ws/data/bags/task1_m19_{1,2,3}` +
+  `analyze_run.py`: 4/4 PASS, FINISHED, closest buoy ≥ 0.5 m; numbers expected
+  within mm–cm of 64.50 s / 0.671 m (expectation); larger change → stop and
+  ask.
+- **Can't check:** the Gazebo window.
+
+#### M1.9 Report (2026-10-21)
+Commit: `git log --grep "^M1.9:"`.
+1. **What changed**
+   - `src/guidance.cpp`: new private `Route::measure(p)` (s and e on the
+     current segment); `update()` calls it, and again right after
+     `++segment_`.
+   - `include/asv_sim/guidance.hpp`: `measure()` declared; `update()` comment
+     says s and e always belong to `segment()`.
+   - `test/test_guidance.cpp`: new `Route.SwitchTickUsesNewSegment`.
+   - §5.1 one sentence; `AUTONOMY.md` §5.1 note and §7 table (new runs, old
+     numbers kept as "before the fix"); `CLAUDE.md` Known state and test
+     baseline; `docs/master_plan.md` mark.
+2. **How it was checked**
+   - New test before the fix: FAILED (target (19.618, −2.246) on the switch
+     tick vs. (18.883, 0.942) one tick later). After the fix: passes.
+   - gtests: test_guidance 15, total 110 passed; `colcon test-result --all`:
+     `120 tests, 0 errors, 0 failures, 0 skipped`. Python: `Ran 56 tests ... OK`.
+   - 3 headless runs (`task1.launch.py gui:=false` + the Step 5 recording
+     command, 160 s), `tools/analyze_run.py`, all criteria 2–4 OK:
+
+     | Run | Time [s] | gate1 OUT | gate2 OUT | gate2 IN | gate1 IN | Closest buoy [m] | max \|e\| [m] | e_rms [m] | Reverse [%] | Min F [N] |
+     |---|---|---|---|---|---|---|---|---|---|---|
+     | task1_m19_1 | 64.60 | −0.000 | −0.002 | −0.175 | +0.022 | 0.674 (gate2_green) | 1.668 | 0.518 | 50.0 | −22.7 |
+     | task1_m19_2 | 64.60 | −0.000 | −0.002 | −0.175 | +0.021 | 0.675 (gate2_green) | 1.668 | 0.518 | 50.0 | −22.7 |
+     | task1_m19_3 | 64.60 | −0.000 | −0.002 | −0.175 | +0.021 | 0.675 (gate2_green) | 1.669 | 0.518 | 50.0 | −22.7 |
+
+   - Change against M1.5: time +0.10 s (2 control ticks), closest buoy
+     +3–4 mm, max |e| +2.3 cm, e_rms +4 mm, gate2 IN offset +4 mm; node vs.
+     recomputed offsets ≤ 0.0005 m. Inside the brief's "mm–cm".
+   - Note: my first run script left `ros2 launch` processes alive between runs
+     (`pkill -INT` did not end them), so runs 2 and 3 recorded no odometry the
+     first time; rerun with a hard cleanup (`ws/data/m19_runs.sh`, not
+     committed). Only the clean runs are in the table.
+3. **What could not be checked:** the Gazebo window (all runs headless).
+4. **How to read the code:** `Route::measure()` is the §5.1 projection
+   (s = (p − W_i)·t̂_i, e = (p − W_i)·n̂_i); `Route::update()` is the switch
+   rule; `LosGuidance::compute()` and `remaining_distance()` are unchanged and
+   now always see the current segment's s.
+5. **Numbers for the thesis** [MEASURED, bags `ws/data/bags/task1_m19_{1,2,3}`]:
+   Task 1 run time 64.60 s; closest buoy 0.674–0.675 m (gate2_green); max |e|
+   1.668–1.669 m; e_rms 0.518 m; reverse thrust 50.0 % of RUNNING commands;
+   gate offsets in the table. Parameters unchanged (§6).
+6. **Check your understanding**
+   1. Why is s usually negative right after a switch, and why is that fine for
+      LOS and d_end?
+   2. Why does `update()` not test for a second switch after measuring on the
+      new segment?
+   3. Why did the run time change by exactly a multiple of 0.05 s?
 
 ## 8. Known risks and open points
 

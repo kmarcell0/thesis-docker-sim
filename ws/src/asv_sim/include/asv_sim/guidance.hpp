@@ -29,8 +29,10 @@ public:
 
   // Call once per control step with the boat position p. Computes s and e on
   // the current segment, then switches to the next segment when
-  // s >= l_i - R_switch (at most one switch per call). On the last segment
-  // the same test sets finished() instead; finished stays set.
+  // s >= l_i - R_switch (at most one switch per call); after a switch, s and
+  // e are computed again on the new segment, so they always belong to
+  // segment() (M1.9). On the last segment the same test sets finished()
+  // instead; finished stays set.
   void update(const Point2 & p);
 
   std::size_t segment() const {return segment_;}               // i
@@ -50,6 +52,9 @@ public:
   double segment_length(std::size_t i) const {return length_[i];}        // l_i, m
 
 private:
+  // Sets s and e of p on the current segment.
+  void measure(const Point2 & p);
+
   std::vector<Point2> waypoints_;
   std::vector<Point2> tangent_;     // unit vector t_i along segment i
   std::vector<double> direction_;   // gamma_i

@@ -82,6 +82,37 @@ TEST(Route, AtMostOneSwitchPerUpdate)
   EXPECT_EQ(route.segment(), 2u);
 }
 
+TEST(Route, SwitchTickUsesNewSegment)
+{
+  // M1.9 (review 2026-10-20 A1): on the tick that switches, s, e, d_end and
+  // the LOS target must already belong to the new segment.
+  Route route(kTask1, kSwitch);
+  LosGuidance los(kLookahead);
+  const Point2 p{16.0, 0.0};  // s = 16 >= l_0 - R_switch = 15.5
+  route.update(p);
+  ASSERT_EQ(route.segment(), 1u);
+
+  // By hand: W1 = (17, 0), t_1 = (5, 2.5) / |(5, 2.5)|, p - W1 = (-1, 0).
+  const double l1 = std::hypot(5.0, 2.5);
+  const double tx = 5.0 / l1, ty = 2.5 / l1;
+  EXPECT_NEAR(route.along_track(), -tx, kTol);  // -0.894 m
+  EXPECT_NEAR(route.cross_track(), ty, kTol);   // +0.447 m
+  const asv_sim::LosOutput out = los.compute(route, p);
+  EXPECT_NEAR(out.target.x, 17.0 + (kLookahead - tx) * tx, kTol);
+  EXPECT_NEAR(out.target.y, 0.0 + (kLookahead - tx) * ty, kTol);
+
+  // Same values as a second update at the same point (which does not switch).
+  const double d_end = route.remaining_distance();
+  const double e = route.cross_track();
+  route.update(p);
+  ASSERT_EQ(route.segment(), 1u);
+  EXPECT_NEAR(route.remaining_distance(), d_end, kTol);
+  EXPECT_NEAR(route.cross_track(), e, kTol);
+  const asv_sim::LosOutput again = los.compute(route, p);
+  EXPECT_NEAR(again.target.x, out.target.x, kTol);
+  EXPECT_NEAR(again.target.y, out.target.y, kTol);
+}
+
 TEST(Route, RemainingDistanceAlongTheRoute)
 {
   double total = 0.0;
