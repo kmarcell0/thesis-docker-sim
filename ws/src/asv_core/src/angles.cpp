@@ -1,8 +1,8 @@
-#include "asv_sim/angles.hpp"
+#include "asv_core/angles.hpp"
 
 #include <cmath>
 
-namespace asv_sim
+namespace asv_core
 {
 
 double wrap_angle(double angle)
@@ -17,4 +17,4 @@ double yaw_from_quaternion(double w, double x, double y, double z)
   return std::atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z));
 }
 
-}  // namespace asv_sim
+}  // namespace asv_core

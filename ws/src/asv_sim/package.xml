@@ -10,6 +10,8 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
+  <!-- ROS-free maths shared with the filter (M2.1): angle helpers, geodesy -->
+  <depend>asv_core</depend>
   <!-- waypoint_follower node (M1.3) -->
   <depend>rclcpp</depend>
   <depend>std_msgs</depend>

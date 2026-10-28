@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <utility>
 
-#include "asv_sim/angles.hpp"
+#include "asv_core/angles.hpp"
 
 namespace asv_sim
 {
@@ -99,7 +99,8 @@ LosOutput LosGuidance::compute(const Route & route, const Point2 & p) const
 
   LosOutput out;
   out.target = route.point_on_segment(i, d);
-  out.desired_heading = wrap_angle(std::atan2(out.target.y - p.y, out.target.x - p.x));
+  out.desired_heading =
+    asv_core::wrap_angle(std::atan2(out.target.y - p.y, out.target.x - p.x));
   return out;
 }
 

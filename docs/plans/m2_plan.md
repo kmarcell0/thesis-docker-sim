@@ -36,6 +36,120 @@ the same numbers (same test points, difference ≤ 1e-9 m).
 - `asv_core` keeps its own plain structs; nodes convert to and from `asv_msgs`
   (review 2026-10-20 B1; one line in `design.md` §12).
 
+### Brief (agreed on 2026-10-28)
+
+1. **Goal:** new ROS-free package `asv_core` with WGS84 latitude/longitude ↔
+   ENU conversion that does what Gazebo does, in C++ and Python; `wrap_angle()`
+   moves into it.
+2. **Decisions:** none (D13 a). Layout choices taken as recommended:
+   - Python copy in `asv_sim/tools/geodesy.py` (no `ament_cmake_python`).
+   - `yaw_from_quaternion()` moves to `asv_core` with `wrap_angle()`.
+3. **Why:** the filter turns each GNSS fix into world-frame metres
+   (Coordinate Frames and Transformations); the corruptor adds GNSS error in
+   metres and converts back (Noise Models); origin = the world's reference
+   point, not the first fix (`design.md` §2). M2.2's check needs our maths to
+   equal Gazebo's, or it measures our maths instead of the simulator.
+4. **New ideas:**
+   - ECEF route: lat/lon/h → Earth-centred XYZ → minus the reference point's
+     XYZ → rotate into east/north/up. Exact, no flat-Earth approximation.
+   - Bowring's closed-form inverse: XYZ → lat/lon in one pass, as Gazebo does
+     (error far below 1 mm near the surface); copied to match Gazebo.
+   - Proposed symbols (φ is roll): φ_G, λ_G, h_G; N_G(φ_G) prime-vertical
+     radius; a, b, e², e'².
+5. **What changes:** ⚠ new package `ws/src/asv_core/` (⚠ `<depend>eigen</depend>`,
+   gtest); `geodesy.hpp/.cpp`, `angles.hpp/.cpp`, `test_geodesy.cpp`,
+   `test_angles.cpp` (moved, ⚠ `git mv` out of `asv_sim`);
+   `test/data/geodesy_points.csv`. `asv_sim`: ⚠ `<depend>asv_core</depend>`,
+   includes in `control.cpp`, `guidance.cpp`, `waypoint_follower.cpp`,
+   `CMakeLists.txt`. New `asv_sim/tools/geodesy.py`, `tests/test_geodesy.py`.
+   Docs: `design.md` §12, §13; glossary; this plan; master plan mark;
+   CLAUDE.md.
+6. **How it works** [SRC: gz-sim8 `Util.cc` `sphericalCoordinates()` calls
+   `PositionTransform(world pos, LOCAL2, SPHERICAL)`; gz-math 7.7.0
+   `SphericalCoordinates.cc`; LOCAL is the legacy frame with x flipped]. Our
+   heading is 0, so the heading rotation is the identity.
+   a = 6378137.0 m, b = 6356752.314245 m, e² = 1 − b²/a², e'² = a²/b² − 1.
+   - N_G = a / √(1 − e² sin²φ_G)
+   - X = (N_G + h_G) cos φ_G cos λ_G, Y = (N_G + h_G) cos φ_G sin λ_G,
+     Z = ((b²/a²) N_G + h_G) sin φ_G
+   - [e n u]ᵀ = R(φ_0, λ_0)(p − p_0),
+     R = [[−sin λ_0, cos λ_0, 0], [−sin φ_0 cos λ_0, −sin φ_0 sin λ_0, cos φ_0],
+     [cos φ_0 cos λ_0, cos φ_0 sin λ_0, sin φ_0]]
+   - inverse: p = p_0 + Rᵀ[e n u]ᵀ; ρ = √(X² + Y²), θ = atan(Z a / (ρ b)),
+     φ_G = atan((Z + e'² b sin³θ) / (ρ − e² a cos³θ)), λ_G = atan2(Y, X),
+     h_G = ρ / cos φ_G − N_G(φ_G)
+   - C++: `GeoPoint{lat_deg, lon_deg, alt}`, `LocalTangentPlane(ref)` with
+     `to_enu()` / `to_geo()` (Eigen::Vector3d). No SDF parsing in C++; the
+     reference comes as a parameter, read by Python `read_geo_reference()`.
+7. **Checks:** gtest + Python: reference → (0, 0, 0) within 1e-9 m;
+   100 m E + 100 m N round trip within 1 mm; 1e-5° north of the reference gives
+   n = M·Δφ (meridian radius, independent formula) within 1 mm; every CSV row
+   within 1e-9 m in both languages. Python: `read_geo_reference()` of
+   `roboboat_course.sdf` = (27.367256, −82.451120, 0.0); error on heading ≠ 0,
+   non-WGS84 surface or non-ENU orientation. Baselines reported (asv_sim gtests
+   drop the moved `test_angles`).
+8. **Can't check:** agreement with a running Gazebo; that is M2.2.
+
+### Report (2026-10-28)
+Commit: the one whose message starts with `M2.1:` (`git log --grep "^M2.1:"`).
+
+1. **What changed**
+   - `ws/src/asv_core/` (new): `package.xml` (eigen, gtest), `CMakeLists.txt`
+     (library `asv_core::asv_core`, exported); `geodesy.hpp/.cpp`
+     (`ecef_from_geo()`, `geo_from_ecef()`, `LocalTangentPlane`);
+     `angles.hpp/.cpp` and `test/test_angles.cpp` (moved from `asv_sim`,
+     namespace `asv_core`); `test/test_geodesy.cpp`;
+     `test/data/geodesy_points.csv` (14 shared points, 2 references × 7 offsets).
+   - `asv_sim`: `package.xml` and `CMakeLists.txt` depend on and link
+     `asv_core`; `control.cpp`, `guidance.cpp`, `waypoint_follower.cpp`
+     call `asv_core::wrap_angle()` / `asv_core::yaw_from_quaternion()`.
+   - `asv_sim/tools/geodesy.py`: same maths, `read_geo_reference()`, CSV
+     writer; `asv_sim/tests/test_geodesy.py`.
+   - Docs: `design.md` §12 (asv_core contents), §13 (Gazebo's conversion
+     [SRC]); glossary (φ_G, λ_G, h_G, φ_0, λ_0, h_0, p_0, N_G, a, b, e², e'²,
+     proposed; Bowring entry); `AUTONOMY.md` and `README.md` paths;
+     CLAUDE.md (baseline, Known state, Layout).
+2. **How it was checked**
+   - Source: gz-math 7.7.0 is installed (`GZ_MATH_VERSION_FULL "7.7.0"`, header
+     has `LOCAL2 = 5`); the conversion was compared line by line with
+     gz-math7 `SphericalCoordinates.cc` (`PositionTransform`,
+     `UpdateTransformationMatrix`) and gz-sim8 `Util.cc:738`
+     (`PositionTransform(xyzPose.Pos(), LOCAL2, SPHERICAL)`).
+   - `colcon build --symlink-install --packages-up-to asv_sim`:
+     `Summary: 2 packages finished [16.2s]`, no warnings.
+   - `colcon test --packages-select asv_core asv_sim`; `colcon test-result`:
+     `Summary: 128 tests, 0 errors, 0 failures, 0 skipped` (asv_core 15 =
+     `test_angles` 6 + `test_geodesy` 7 + 2 wrappers; asv_sim 113 = 104 + 9).
+     A stale `test_angles` result in `build/asv_sim` first made it 134; it was
+     removed from the build folder.
+   - `python3 -m unittest discover -s tests`: `Ran 67 tests ... OK`
+     (56 + 11 new).
+   - One-off program over the 14 shared points [MEASURED]:
+     `max |C++ - Python| = 0.000e+00 m`, `max round-trip error = 3.313e-09 m`.
+   - Plausibility: 100 m E + 100 m N at u = 0 lies 1.571 mm above the
+     ellipsoid (CSV), as d²/(2R) = 20000/(2·6.37·10⁶) m ≈ 1.57 mm predicts.
+3. **What could not be checked:** that a running Gazebo's clean fixes convert
+   back to the true antenna position. That is M2.2's check.
+4. **How to read the code:** start at `asv_core/include/asv_core/geodesy.hpp`
+   (each function lists its equation), then `src/geodesy.cpp`:
+   `ecef_from_geo()` = forward formula with N_G; `LocalTangentPlane`
+   constructor = p_0 and R; `to_enu()` = R(p − p_0); `to_geo()` =
+   p_0 + Rᵀ·enu then `geo_from_ecef()` (Bowring). `tools/geodesy.py` mirrors
+   this function by function.
+5. **Numbers for the thesis**
+   - WGS84 a = 6378137.0 m, b = 6356752.314245 m [SRC gz-math 7.7.0].
+   - Reference point 27.367256° N, −82.451120° E, 0 m, heading 0 [REPO
+     `roboboat_course.sdf`].
+   - Round-trip error ≤ 3.3 nm up to 5.8 km from the reference; C++ and
+     Python identical [MEASURED].
+6. **Check your understanding**
+   - Why does a point 100 m east of the reference, put on the ellipsoid, come
+     out with u < 0 rather than u = 0?
+   - What would go wrong in M2.2 if we used gz-math's LOCAL frame instead of
+     LOCAL2?
+   - Why is the reference point a parameter of the C++ code, not read from the
+     SDF there?
+
 ---
 
 ## M2.2 Switch Gazebo's IMU, NavSat and lidar noise off

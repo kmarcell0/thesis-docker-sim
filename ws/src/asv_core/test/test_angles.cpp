@@ -3,13 +3,13 @@
 
 #include <cmath>
 
-#include "asv_sim/angles.hpp"
+#include "asv_core/angles.hpp"
 
 namespace
 {
 
-using asv_sim::wrap_angle;
-using asv_sim::yaw_from_quaternion;
+using asv_core::wrap_angle;
+using asv_core::yaw_from_quaternion;
 
 constexpr double kPi = M_PI;
 constexpr double kTol = 1e-12;

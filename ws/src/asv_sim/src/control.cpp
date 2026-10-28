@@ -4,7 +4,7 @@
 #include <cmath>
 #include <stdexcept>
 
-#include "asv_sim/angles.hpp"
+#include "asv_core/angles.hpp"
 
 namespace asv_sim
 {
@@ -24,7 +24,7 @@ double course_angle(double heading, double u, double v, double min_speed)
   }
   // max() also covers reverse (u < 0): the course stays within +-90 deg of
   // the heading instead of flipping by pi.
-  return wrap_angle(heading + std::atan2(v, std::max(u, min_speed)));
+  return asv_core::wrap_angle(heading + std::atan2(v, std::max(u, min_speed)));
 }
 
 HeadingControl::HeadingControl(const HeadingGains & gains)
@@ -45,7 +45,7 @@ HeadingCommand HeadingControl::compute(
   double desired_heading, double heading, double yaw_rate) const
 {
   HeadingCommand cmd;
-  cmd.heading_error = wrap_angle(desired_heading - heading);
+  cmd.heading_error = asv_core::wrap_angle(desired_heading - heading);
 
   // PD law; the D part uses the measured yaw rate omega instead of the
   // derivative of psi~, so a jump of psi_d at a waypoint switch gives no

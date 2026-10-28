@@ -539,6 +539,10 @@ real-boat code and the Python tools can then use them without the simulator. (An
 ament_python package such as asv_eval can't define messages itself.)
 `asv_core` has its own plain structs (as M1's `NavState`); the nodes convert
 between them and the `asv_msgs` / ROS types, so `asv_core` stays ROS-free.
+Contents so far (M2.1): `angles.hpp` (`wrap_angle()`, `yaw_from_quaternion()`,
+moved from `asv_sim`) and `geodesy.hpp` (`GeoPoint`, `LocalTangentPlane`). The
+C++ code takes the reference point as a value; reading it from the world SDF is
+done in Python (`asv_sim/tools/geodesy.py` `read_geo_reference()`).
 
 Configuration map:
 
@@ -582,6 +586,13 @@ Checked facts (gz-sensors / gz-sim source code and the repository):
   dual-antenna heading sensor.
 - The IMU's orientation output is perfect (no noise), in ENU.
 - The NavSat sensor reports the antenna's position, not base_link's.
+- The NavSat latitude/longitude/altitude comes from gz-sim 8
+  `sphericalCoordinates()` (`src/Util.cc`): gz-math 7.7.0
+  `PositionTransform(world position, LOCAL2, SPHERICAL)`, i.e. ENU → ECEF
+  (WGS84, a = 6378137.0 m, b = 6356752.314245 m) → geodetic with Bowring's
+  one-pass closed form. LOCAL2 is the correct ENU frame (the legacy LOCAL frame
+  flips x). The world's heading is 0, so no heading rotation. `asv_core`
+  `geodesy.hpp` and `asv_sim/tools/geodesy.py` copy this (M2.1).
 - Ground truth is published at 50 Hz; its twist is a 10-sample moving average of
   finite differences.
 - The IMU's samples land on 4 ms physics steps (intervals 8, 4, 4, 4 ms).

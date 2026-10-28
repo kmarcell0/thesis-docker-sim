@@ -1,9 +1,9 @@
 // Angle helpers: wrapping and yaw from a quaternion. ROS-free.
 // Every angle difference in the project goes through wrap_angle() (design.md
-// section 2); when asv_core exists (M2.1) this helper moves there.
+// section 2). Moved here from asv_sim in M2.1.
 #pragma once
 
-namespace asv_sim
+namespace asv_core
 {
 
 // Wraps an angle to (-pi, pi], in rad. -pi maps to +pi, so each direction
@@ -16,4 +16,4 @@ double wrap_angle(double angle);
 // Roll and pitch do not change the result.
 double yaw_from_quaternion(double w, double x, double y, double z);
 
-}  // namespace asv_sim
+}  // namespace asv_core

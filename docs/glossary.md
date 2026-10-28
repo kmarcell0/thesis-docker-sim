@@ -58,6 +58,10 @@ proposes, Marcell decides, and then this table is updated.
 | χ, u_min | course: direction of the boat's velocity, χ = wrap(ψ + atan2(v, max(u, u_min))); u_min is the low-speed guard | rad; m/s | proposed (the sideslip atan2(v, u) has no symbol: β is the buoy bearing) |
 | K_ψ, K_ω | heading-control gains (on heading error and on yaw rate); steer is in rad | none, s | proposed (replaces K_r) |
 | ψ_spin, K_spin, K_s | spin-assist threshold, ramp gain and proportional gain: spin = clamp(K_s ψ̃ + sign(ψ̃)·clamp(K_spin(\|ψ̃\| − ψ_spin), 0, spin_max), ±spin_max) (10.3 b, 10.16 b) | rad; 1/rad; 1/rad | proposed |
+| φ_G, λ_G, h_G | geodetic latitude, longitude (WGS84) and height above the ellipsoid | rad (deg in NavSatFix), m | proposed (φ alone is roll) |
+| φ_0, λ_0, h_0, p_0 | the world's reference point (`<spherical_coordinates>`) and its ECEF position | rad, m | proposed |
+| N_G | prime-vertical radius of curvature, N_G = a / √(1 − e² sin²φ_G) | m | proposed (N alone is the landmark count) |
+| a, b, e², e'² | WGS84 semi-axes and first / second eccentricity squared: e² = 1 − b²/a², e'² = a²/b² − 1 | m, m, none | proposed |
 | ψ_turn | turn threshold: while \|ψ̃\| > ψ_turn the throttle may not be negative (decision 10.2 c) | rad | proposed |
 | u_cmd, u_ref | commanded forward speed and the segment's speed: u_cmd = min(u_ref·max(0, cos ψ̃), K_stop d_end) | m/s | proposed |
 | K_stop | gain that slows the boat near the end, u_cmd ≤ K_stop d_end | 1/s | proposed |
@@ -209,6 +213,11 @@ of all buoys, so it estimates the map and the boat together.
 around a chosen reference point. *ECEF*: Earth-centred Cartesian coordinates.
 *WGS84*: the standard model of the Earth's shape (an ellipsoid) used by GPS.
 Converting latitude/longitude to ENU goes through ECEF. [coordinate-frames-notes]
+
+**Bowring's formula.** A closed-form way to turn ECEF coordinates back into
+latitude, longitude and height in one pass, with no iteration. Gazebo uses it, so
+`asv_core` does too; near the Earth's surface its error is negligible (3.3 nm on
+the M2.1 test points, up to 5.8 km from the reference).
 
 **Extrinsics, lever arm.** *Extrinsics*: where a sensor is mounted on the boat and
 how it is rotated. *Lever arm*: the offset from the boat's reference point to the

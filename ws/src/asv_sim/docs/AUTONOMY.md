@@ -90,9 +90,9 @@ docker compose exec -T sim bash -ic "timeout 90 ros2 topic echo /asv/autonomy/st
 
 - p = (x, y): pose position, world frame.
 - ψ = atan2(2(q_w q_z + q_x q_y), 1 − 2(q_y² + q_z²)) — `yaw_from_quaternion()`
-  (`angles.hpp`).
+  (`asv_core/angles.hpp`, since M2.1).
 - u = twist.linear.x, v = twist.linear.y, ω = twist.angular.z (body frame).
-- Every angle difference: wrap to (−π, π] — `wrap_angle()` (`angles.hpp`).
+- Every angle difference: wrap to (−π, π] — `wrap_angle()` (`asv_core/angles.hpp`, since M2.1).
 - Time step Δt from consecutive odometry stamps, not from 1/control_rate.
 
 ## 5. Equations, final form

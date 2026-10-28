@@ -19,7 +19,7 @@
 #include "std_msgs/msg/float64.hpp"
 #include "std_msgs/msg/string.hpp"
 
-#include "asv_sim/angles.hpp"
+#include "asv_core/angles.hpp"
 #include "asv_sim/follower.hpp"
 
 namespace
@@ -185,7 +185,7 @@ private:
     return asv_sim::NavState{
       rclcpp::Time(m.header.stamp).seconds(),
       {m.pose.pose.position.x, m.pose.pose.position.y},
-      asv_sim::yaw_from_quaternion(q.w, q.x, q.y, q.z),
+      asv_core::yaw_from_quaternion(q.w, q.x, q.y, q.z),
       m.twist.twist.linear.x, m.twist.twist.linear.y, m.twist.twist.angular.z};
   }
 

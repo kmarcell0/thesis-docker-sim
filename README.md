@@ -117,7 +117,7 @@ docker compose exec -T sim bash -ic "cd /ws && colcon build --symlink-install --
 
 # 4. Tests (Python, then the C++ gtests)
 docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 -m unittest discover -s tests"
-docker compose exec -T sim bash -ic "cd /ws && colcon test --packages-select asv_sim && colcon test-result --verbose"
+docker compose exec -T sim bash -ic "cd /ws && colcon test --packages-select asv_core asv_sim && colcon test-result --verbose"
 ```
 
 Run RoboBoat Task 1 autonomously (Gazebo + waypoint follower, one command;
@@ -187,6 +187,7 @@ compose.yaml             container setup (GPU, X11, workspace mount)
 setup-env.sh             writes .env for compose.yaml
 ws/                      colcon workspace, mounted at /ws in the container
   src/vrx/               VRX (git submodule, osrf/vrx @ 7609d1b)
+  src/asv_core/          ROS-free maths: angle helpers, geodesy (lat/lon <-> ENU)
   src/asv_sim/           our simulator package
     config/asv.yaml      boat description (edit this)
     models/, worlds/     generated boat model, RoboBoat 2026 course
@@ -197,12 +198,12 @@ ws/                      colcon workspace, mounted at /ws in the container
     config/task1_route.yaml  Task 1 route, gains, buoys
     config/maneuvers/    open-loop maneuver tables (straight, zigzag, circle)
     config/teleop.yaml   teleop key steps
-    tools/               model generator, studies, checks, analyze_run.py, compare_runs.py
+    tools/               model generator, studies, checks, analyze_run.py, compare_runs.py, geodesy.py
     tests/               Python tests
   data/                  bags, run results, figures (not in git)
 ```
 
-Planned packages (`asv_core`, `asv_msgs`, `asv_slam`, `asv_eval`, ...) are
+Planned packages (`asv_msgs`, `asv_slam`, `asv_eval`, ...) are
 listed in [`docs/design.md`](docs/design.md) §12.
 
 ## Documentation
