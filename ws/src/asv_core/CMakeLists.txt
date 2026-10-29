@@ -16,6 +16,7 @@ find_package(Eigen3 REQUIRED)
 add_library(asv_core
   src/angles.cpp
   src/geodesy.cpp
+  src/noise.cpp
 )
 target_include_directories(asv_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -44,6 +45,10 @@ if(BUILD_TESTING)
   target_link_libraries(test_geodesy asv_core)
   target_compile_definitions(test_geodesy PRIVATE
     ASV_CORE_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/test/data")
+
+  # Noise library (M2.5): statistics on 10-40 h records, so a longer timeout.
+  ament_add_gtest(test_noise test/test_noise.cpp TIMEOUT 300)
+  target_link_libraries(test_noise asv_core)
 endif()
 
 ament_package()

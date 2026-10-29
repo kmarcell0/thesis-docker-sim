@@ -290,7 +290,7 @@ Two findings that change numbers (each needs your OK, because they are values in
   option).
 - How a datasheet noise density turns into noise per sample (σ = η/√dt in
   `design.md` §4.1, or √2 smaller by TDK's own definition) should be stated
-  once; the M2.5 brief settles it.
+  once; the M2.5 brief settles it. (Settled 2026-10-29: σ = η/√dt.)
 
 Questions:
 7. D11: A, B or C? And the nominal level: ideal, tuned or Rover default?

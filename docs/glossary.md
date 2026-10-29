@@ -153,7 +153,8 @@ slowly varying GNSS error.
 
 **Common random numbers.** Using the same random noise draws when comparing two
 settings, so differences in the results come from the settings and not from luck.
-Achieved with one random stream per sensor.
+Achieved with one random stream per noise source, seeded from (global seed,
+source name) (`asv_core/noise.hpp`, M2.5).
 
 **Consistency (of a filter).** A filter is consistent if the uncertainty it
 reports (P) matches its actual errors. Checked with NEES and NIS.
@@ -249,6 +250,9 @@ from where a buoy is expected, measured in units of the expected uncertainty
 each step it keeps most of its old value and adds a little fresh noise. Two
 numbers describe it: its typical size σ_ss and its correlation time T_c (how long
 it "remembers"). Used for wandering biases and slowly varying GNSS error.
+Our step is exact for any dt, and it starts from a random value of size σ_ss, so
+it is *stationary* (statistically the same at every time) from the first sample
+(M2.5 B a).
 
 **GNSS Doppler velocity.** The boat's velocity measured by the GNSS receiver from
 the Doppler shift of the satellite signals. Lost together with the position in a
@@ -319,8 +323,9 @@ number of values checked (3 for x, y, ψ).
 innovations. Needs no ground truth, so it also works on a real boat.
 
 **Noise density.** How strong white noise is, independent of the sample rate (e.g.
-rad/s/√Hz). The noise per sample is the density divided by √dt (one convention;
-TDK's definition gives a value √2 smaller: see `design.md` §4.1).
+rad/s/√Hz). The noise per sample is the density divided by √dt (decided in
+M2.5, 2026-10-29; TDK's definition would give a value √2 smaller: see
+`design.md` §4.1). With this rule the Allan deviation is η/√τ.
 
 **Open loop, closed loop.** *Closed loop*: the controller measures the result
 (here the true pose) and corrects towards the goal, like the waypoint follower;

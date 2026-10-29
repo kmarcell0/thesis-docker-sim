@@ -430,6 +430,131 @@ the analytic total), at the tolerance fixed in the brief.
 - Normal distribution implemented in the library, not `std::normal_distribution`
   (`design.md` §4.5).
 
+### Brief (agreed on 2026-10-29)
+
+**Summary (in plain words)**
+Since M2.2 Gazebo gives perfect sensor readings. Real sensors have three kinds
+of error: a small random jitter on every reading (white noise), a fixed offset
+chosen when the sensor powers on (turn-on bias), and an offset that slowly
+drifts over minutes (Gauss-Markov bias). Example: a gyro lying still should
+read 0; a real one reads 0.0012, 0.0003, −0.0008 rad/s … around an offset that
+slowly wanders. This step writes the small C++ "dice" that produce these three
+errors; M2.6 adds them to the clean data. Each sensor gets its own seeded dice:
+the same seed always gives exactly the same noise, and changing the GNSS noise
+never changes the IMU noise. Statistics tests prove the dice match the maths.
+No node, no topic, no Gazebo run, no value in `asv.yaml` changes.
+
+**1. Goal:** white noise, turn-on bias and Gauss-Markov bias in `asv_core`,
+one seeded random stream per noise source, time steps from timestamps.
+
+**2. Decisions needed** (two design choices, no D-number)
+- A. Density η → per-sample σ: a) σ = η/√Δt (recommended; ADEV = η/√τ,
+  matches `design.md` §4.1 and `asv_report.json`); b) σ = η/√(2Δt) (TDK's
+  one-sided definition, √2 smaller).
+- B. Gauss-Markov start: a) random draw from N(0, σ_ss²) (recommended,
+  stationary from t = 0); b) zero (too-good IMU for about T_c = 300 s).
+
+Marcell (2026-10-29): **A a**, **B a**.
+
+**3. Why:** the error model of every simulated sensor (IMU M2.6a, GNSS
+M2.6b/c). Feeds: Noise Models; Vehicle and Sensor Models.
+
+**4. New ideas:** noise density η (per √Hz, per-sample σ depends on Δt from
+stamps); exact Gauss-Markov step (keeps σ_ss whatever Δt is; IMU intervals are
+8, 4, 4, 4 ms); common random numbers (one stream per source, seeded from
+(global seed, source name)).
+
+**5. What will change:** `asv_core/include/asv_core/noise.hpp`, `src/noise.cpp`
+(new); `test/test_noise.cpp`, `test/allan.hpp` (new, test-only overlapping
+Allan deviation); `asv_core/CMakeLists.txt`; docs `design.md` §4.1/§4.5,
+`glossary.md`, this plan, `master_plan.md`, `CLAUDE.md`. No new dependency.
+
+**6. How it works:** measured = true + b₀ + b_k + n_k.
+- White: n_k = σ_w·w_k, σ_w = η/√Δt_k.
+- Turn-on: b₀ ~ N(0, σ₀²), one draw per run.
+- Gauss-Markov: φ_k = e^(−Δt_k/T_c), b_{k+1} = φ_k·b_k + σ_ss·√(1−φ_k²)·w_k,
+  b at start drawn from N(0, σ_ss²).
+- Random numbers: `std::mt19937_64` (output fixed by the C++ standard), seeded
+  with SplitMix64(seed XOR FNV-1a(name)); own Marsaglia polar normal draw.
+- Δt ≤ 0 throws.
+
+**7. How we will check it:** same seed and name → same numbers, different
+names → different streams; Allan helper on a ramp gives a·τ/√2; the three
+tests of `design.md` §4.5. Tolerance 5 % with one fixed seed if the largest
+error over 10 seeds is ≤ 2.5 %, otherwise stop and show the numbers. Expected:
+`asv_core` gtests 13 → about 21; `asv_sim` 104 and Python 84 unchanged.
+
+**8. What I can't check:** that the model matches a real Pixhawk (the tests
+only prove the code implements the model).
+
+**During the build** (2026-10-29): with 10 h records the worst error over 10
+seeds was above 2.5 % (test 2 autocorrelation at 5 s 3.66 %, ADEV 2.74 %;
+test 3 at τ = 30 s 4.54 % gyro, 4.67 % accel). Marcell chose **a)**: tests 2
+and 3 use 40 h records (worst 2.08 %), test 1 stays 10 h, tolerance 5 %.
+
+### Report (2026-10-29)
+
+**1. What changed**
+- `asv_core/include/asv_core/noise.hpp`, `src/noise.cpp` (new):
+  `stream_seed()`, `RandomStream` (mt19937_64 + polar normal draw),
+  `WhiteNoise`, `TurnOnBias`, `GaussMarkov`.
+- `asv_core/test/allan.hpp` (new, test-only): overlapping Allan deviation,
+  analytic Gauss-Markov Allan variance, mean, std, autocorrelation.
+- `asv_core/test/test_noise.cpp` (new, 18 gtests): streams (seed, repeat,
+  pinned values, N(0,1) moments), white noise (σ, bad input, integral variance
+  with 8/4/4/4 ms steps), turn-on bias, Gauss-Markov (bad input, zero size,
+  stationary start, uneven steps), Allan helper on a ramp, `design.md` §4.5
+  tests 1–3 (gyro and accel), and a check that test 3 would catch a missing
+  bias.
+- `asv_core/CMakeLists.txt`: `src/noise.cpp`, `test_noise` (timeout 300 s).
+- Docs: `design.md` §4.1 (convention, stationary start), §4.5 (as built,
+  tolerances, record lengths); `glossary.md` (noise density, common random
+  numbers, Gauss-Markov); `decision_notes.md` (convention settled);
+  `master_plan.md`; `CLAUDE.md` (known state, baseline).
+
+**2. How it was checked**
+- Tolerance sweep (scratch program, 10 seeds, worst |relative error|):
+  10 h: test 1 0.28 / 0.70 / 1.96 %; test 2 σ 1.50 %, autocorrelation 0.67 /
+  3.66 %, ADEV 2.74 %; test 3 gyro 0.64 / 1.72 / 4.54 %, accel 0.66 / 2.41 /
+  4.67 %. 40 h: test 1 0.08 / 0.31 / 0.70 %; test 2 0.77 %, 0.23 / 1.43 %,
+  1.12 %; test 3 gyro 0.35 / 0.70 / 1.78 %, accel 0.42 / 1.03 / 2.08 %.
+- Extra statistics tests, 10 seeds: white integral 0.89 %, Gauss-Markov with
+  uneven steps σ 0.76 % and correlation 0.38 % (tolerance 5 %); turn-on spread
+  1.25 %, Gauss-Markov start spread 1.07 % (tolerance 2.5 %).
+- First run: `WhiteNoise.IntegralVarianceWithUnevenSteps` failed (ratio 1.121).
+  This was a test bug: in the 8/4/4/4 ms pattern 1 s is 200 samples, not 250
+  (√1.25 = 1.118). Fixed in the test, and the same lag in the Gauss-Markov
+  uneven test. The library was not changed.
+- Pinned values: the same with `-O0` and `-O2`.
+- `colcon test --packages-select asv_core asv_sim` + `colcon test-result`:
+  `147 tests, 0 errors, 0 failures, 0 skipped` (asv_core 13 + 18 = 31 gtests,
+  asv_sim 104 unchanged, 12 CTest wrappers). `test_noise` takes 19.4 s
+  (debug build).
+- `python3 -m unittest discover -s tests`: `Ran 84 tests ... OK` (unchanged).
+
+**3. What could not be checked:** whether a real Pixhawk follows this model;
+nothing uses the library yet (first user M2.6a).
+
+**4. How to read the code:** start with `noise.hpp` (the equations are in the
+comments), then `noise.cpp`: `WhiteNoise::sample()` = n_k = σ_w·w_k with
+σ_w = η/√dt (`design.md` §4.1); `TurnOnBias` constructor = b₀ ~ N(0, σ₀²);
+`GaussMarkov::step()` = b_{k+1} = φ_k·b_k + σ_ss·√(1−φ_k²)·w_k;
+`RandomStream::normal()` = polar method. In the tests, `allan.hpp`
+`allan_deviation()` and `gauss_markov_allan_variance()` are the §4.5 formulas.
+
+**5. Numbers for the thesis**
+- Per-sample gyro σ at 200 Hz: 9.379e-4 rad/s (η = 6.632e-5 rad/s/√Hz [DS],
+  σ = η/√dt).
+- Test tolerance 5 %, record lengths 10 h / 40 h at 200 Hz; worst errors over
+  10 seeds above [MEASURED].
+
+**6. Check your understanding**
+1. Why does the white noise per sample get larger when the IMU steps get
+   shorter, and what stays the same?
+2. Why does the Gauss-Markov push use √(1−φ²) and not a fixed size?
+3. Why does each noise source have its own stream instead of one stream per
+   sensor?
+
 ---
 
 ## M2.6 Corruptor (proposed split into a–d)

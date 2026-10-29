@@ -168,9 +168,10 @@ multipliers, schedules, overrides and the seed.
   η = 6.865e-4 m/s²/√Hz. At 200 Hz that is 9.4e-4 rad/s (0.054 °/s) and 9.7e-3
   m/s² (0.99 mg), the same as `asv_report.json`. Pending (`decision_notes.md`
   D11): the accelerometer density at ArduPilot's ±32 g range is 110 µg/√Hz
-  (1.079e-3 m/s²/√Hz, DS-000577 Table 2), awaiting Marcell's OK; and TDK's own
-  definition of the density gives a per-sample σ √2 smaller than this rule. The
-  M2.5 brief settles the convention.
+  (1.079e-3 m/s²/√Hz, DS-000577 Table 2), awaiting Marcell's OK.
+  Convention (M2.5, decided 2026-10-29): σ = η/√dt, so the Allan deviation is
+  η/√τ. TDK's own definition of the density would give a per-sample σ √2
+  smaller; not used.
 - The clean IMU topic still carries Gazebo's own IMU noise until M2.2 switches
   it off, so M2.2 comes before the IMU corruptor is tested.
 - **Turn-on bias**: one draw per run [EST, `asv.yaml`]: gyro σ = 0.0017 rad/s,
@@ -181,6 +182,8 @@ multipliers, schedules, overrides and the seed.
   which model is used.)
 - **Wandering bias**: a first-order *Gauss-Markov* process, b(k+1) =
   e^(−dt/T_c)·b(k) + σ_ss·√(1 − e^(−2dt/T_c))·w(k), with w a standard normal draw.
+  The start value b(0) is drawn from N(0, σ_ss²) (M2.5, decided 2026-10-29), so
+  the process is stationary from the first sample.
   Steady-state σ_ss [EST, `asv.yaml`]: gyro 0.0002 rad/s (about 41 °/h),
   accelerometer 0.005 m/s²; T_c = 300 s.
 - **What the message carries** (D11, decided 2026-10-21: raw IMU without
@@ -261,13 +264,17 @@ metres, converts back to latitude/longitude, and publishes a NavSatFix.
   name). Changing one sensor's settings then leaves every other sensor's noise
   unchanged ("common random numbers"). The normal distribution is implemented in
   the library rather than taken from `std::normal_distribution`, whose output
-  differs between compilers.
+  differs between compilers. As built (M2.5, `asv_core/noise.hpp`): each of
+  white noise, turn-on bias and Gauss-Markov bias has its own stream (e.g.
+  `imu.gyro_z.white`); engine `std::mt19937_64` seeded with SplitMix64(global
+  seed XOR FNV-1a(name)); normal draw by Marsaglia's polar method; dt ≤ 0 is an
+  error.
 - **Tests** (unit tests, no Gazebo, fixed seeds). τ is the Allan averaging time;
   T_c is the Gauss-Markov correlation time from §4.1.
   1. *White noise alone*: the overlapping Allan deviation at τ = 0.1, 1 and 10 s
      equals η/√τ.
   2. *Gauss-Markov alone*, with a short test correlation time (e.g. T_c = 5 s; the
-     code is the same for any T_c) and a long record (e.g. 10 h at 200 Hz): the
+     code is the same for any T_c) and a long record (40 h at 200 Hz): the
      sample standard deviation is σ_ss, the lag-k autocorrelation is
      e^(−k·dt/T_c), and the Allan deviation at about 10 values of τ between
      0.5·T_c and 4·T_c follows the analytic curve
@@ -277,10 +284,12 @@ metres, converts back to latitude/longitude, and publishes a NavSatFix.
      small (it adds 1.0 % for the gyro, 5.7 % for the accelerometer); from τ = 10 s
      on it is larger than the white-noise part (+72 % and +254 %), so an
      implementation that forgets the bias can't pass.
-  - Tolerances: about 5 %; the M2.5 brief fixes them from the spread over a few
-    seeds. Nothing tests the position of the hump on its own: the curve is almost
-    flat around its peak (at τ ≈ 1.89·T_c, height 0.617·σ_ss), so its position
-    scatters a lot.
+  - Tolerances (M2.5): 5 % relative. Record lengths: test 1 10 h, tests 2
+    and 3 40 h at 200 Hz (with 10 h the worst error over 10 seeds was 4.67 %
+    at τ = 30 s; with 40 h it is 2.08 % [MEASURED]). Nothing tests the
+    position of the hump on its own: the curve is almost flat around its
+    peak (at τ ≈ 1.89·T_c, height 0.617·σ_ss), so its position scatters a
+    lot.
   - The 3 h Allan plot with nominal values (T_c = 300 s) is a figure for the
     thesis, not a pass/fail test. See the glossary entry "Allan deviation" for why
     our curve has a hump and no flat "bias instability" floor.

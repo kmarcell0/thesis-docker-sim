@@ -188,12 +188,13 @@ raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M2.4): 84 Python tests, run with `unittest`; `colcon test`
-  for `asv_core` runs 13 gtests (`test_angles` 6, `test_geodesy` 7) and for
+  Current baseline (M2.5): 84 Python tests, run with `unittest`; `colcon test`
+  for `asv_core` runs 31 gtests (`test_angles` 6, `test_geodesy` 7,
+  `test_noise` 18, about 20 s) and for
   `asv_sim` 104 (`test_mix` 9, `test_guidance` 15, `test_control` 27,
   `test_gate_monitor` 15, `test_follower` 11, `test_closed_loop` 7,
   `test_maneuver` 8, `test_maneuver_files` 3, `test_teleop` 9);
-  `colcon test-result` counts 15 + 113 = 128, the extra eleven are CTest's
+  `colcon test-result` counts 34 + 113 = 147, the extra twelve are CTest's
   wrappers, one per gtest binary.
   Report both numbers after every step.
 - **Python 3** for tools, launch files and offline analysis.
@@ -365,6 +366,14 @@ Update this section in the same commit as the step that changes it.
   `asv.yaml` and its steps from `config/teleop.yaml` itself (T1 a, so
   `ros2 run` needs no parameter file); publishes zero on X, Ctrl-C, SIGTERM,
   SIGHUP. Gazebo keeps the last thruster command if a driver dies hard.
+- **Noise library (M2.5):** `asv_core/noise.hpp`: `WhiteNoise` (σ = η/√dt,
+  so ADEV = η/√τ; decided 2026-10-29), `TurnOnBias` (one draw per run),
+  `GaussMarkov` (exact step for any dt, start drawn from N(0, σ_ss²)). Each
+  noise source owns its own `RandomStream`, seeded with
+  SplitMix64(global seed XOR FNV-1a(source name)); own polar normal draw,
+  pinned values in `test_noise`. dt ≤ 0 throws. The §4.5 tests use 10 h
+  (test 1) and 40 h (tests 2, 3) records, tolerance 5 % (worst over 10 seeds
+  2.08 %). Not used by any node yet (M2.6).
 - **`asv_msgs` (M2.4):** interface package (rosidl, depends on `std_msgs`
   only): `BuoyColour`, `BuoyDetection(Array)`, `Landmark(Array)`,
   `GnssHeading`, `GnssStatus` (was planned as SensorStatus; renamed, M2.4 B b).
@@ -421,7 +430,7 @@ ws/                       colcon workspace, mounted in the container at /ws
     tests/                Python tests of the generator and tools
     launch/               sim.launch.py (Gazebo + bridge + static TF), task launch files
     docs/                 HOW_IT_WORKS.md (generator), milestone1_plan.md
-  src/asv_core/           ROS-free maths (D13 a): angles, geodesy (from M2.1); gtests in test/
+  src/asv_core/           ROS-free maths (D13 a): angles, geodesy (from M2.1), noise (M2.5); gtests in test/
   src/asv_msgs/           message types (from M2.4)
   src/asv_slam, asv_perception, asv_eval   (planned, see docs/design.md §12)
 ```
