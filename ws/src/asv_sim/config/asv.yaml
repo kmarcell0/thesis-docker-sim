@@ -8,6 +8,13 @@
 name: asv
 namespace: asv            # prefix of all topics: /asv/...
 
+# Gazebo's own IMU, GNSS (NavSat) and lidar noise (D1 a, D2 a). false = Gazebo
+# publishes perfect data on /asv/imu, /asv/gnss, /asv/lidar, and our corruptor
+# adds the noise (from the sensor_specs values below) under /asv/sensors/...
+# Camera pixel noise is always on. Required: a missing key is an error, so the
+# noise can't come back by accident.
+gazebo_sensor_noise: false
+
 # ============================ FIXED DESIGN ==================================
 hull:                     # two identical cylindrical hulls (catamaran)
   length: 1.60            # each hull

@@ -188,7 +188,7 @@ raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M2.1): 67 Python tests, run with `unittest`; `colcon test`
+  Current baseline (M2.2): 79 Python tests, run with `unittest`; `colcon test`
   for `asv_core` runs 13 gtests (`test_angles` 6, `test_geodesy` 7) and for
   `asv_sim` 104 (`test_mix` 9, `test_guidance` 15, `test_control` 27,
   `test_gate_monitor` 15, `test_follower` 11, `test_closed_loop` 7,
@@ -365,9 +365,14 @@ Update this section in the same commit as the step that changes it.
   `asv.yaml` and its steps from `config/teleop.yaml` itself (T1 a, so
   `ros2 run` needs no parameter file); publishes zero on X, Ctrl-C, SIGTERM,
   SIGHUP. Gazebo keeps the last thruster command if a driver dies hard.
-- **GNSS noise bug (until step M2.2):** `asv.yaml` gives GNSS noise in metres, but
-  Gazebo applies it in degrees, so the simulated GNSS noise is about 890 m.
-  Don't use GNSS data recorded before M2.2.
+- **Gazebo sensor noise off (M2.2):** `asv.yaml` `gazebo_sensor_noise: false`
+  (required key, D2 a): the generator writes no `<noise>` into the lidar, IMU
+  and NavSat sensors; camera pixel noise stays. So `/asv/imu/data`,
+  `/asv/gnss/...` and `/asv/lidar/points` are exact. Before M2.2 Gazebo read
+  the GNSS noise as degrees (about 890 m): don't use GNSS data recorded before
+  M2.2. `tools/check_clean_gnss.py <bag>` compares each fix with ground truth
+  + R(q)·l (lever arm from `asv_frames.yaml`); M2.2 run
+  `ws/data/bags/m22_clean_gnss`: largest difference 3.6 nm.
 - Gazebo's IMU orientation is perfect (no noise). Never feed it to a filter. The
   corruptor's IMU message (D11, 2026-10-21) is a raw 200 Hz gyro and accel
   with noise and biases, stamped at measurement time, without orientation; it

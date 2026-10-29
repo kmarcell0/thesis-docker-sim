@@ -85,8 +85,10 @@ config/asv.yaml  ─┐
 
 ### 4.1 Structure of the YAML
 
-The file has two parts:
+The file has two parts, plus one switch:
 
+* **`gazebo_sensor_noise`** (required, true/false): whether Gazebo adds its own
+  noise to the lidar, IMU and NavSat sensors (section 5.5).
 * **Fixed design**, which does not change between studies:
   * `hull`: length, radius, spacing, mass, and buoyancy sample points per hull
   * `deck`
@@ -166,6 +168,9 @@ frames `<name>_link` / `<name>_optical`.
 | `gnss` | `navsat` | `/asv/<n>/fix` | `<n>_link` |
 | `gnss_dual` | 2 × `navsat` | `/asv/<n>/fix`, `/asv/<n>/secondary/fix` | `<n>_{primary,secondary}_link` |
 
+The noise described in sections 5.1, 5.3 and 5.4 is written into the SDF only
+with `gazebo_sensor_noise: true`; the shipped config has it off (section 5.5).
+
 ### 5.1 Lidar
 
 The lidar is modelled as a regular grid: `channels` beams evenly spread over
@@ -185,6 +190,10 @@ reproduces the point count per scan (20,000, i.e. 200,000 points/s at 10 Hz)
 and the angular extent, but not the pattern. Per-scan coverage is therefore
 more uniform in the simulation, and any beams-on-target figure is a grid
 artefact at the level of single beams.
+
+* **Range noise** (only with `gazebo_sensor_noise: true`): Gaussian, `noise`
+  = 1σ in metres. Gazebo's `range/resolution` (0.01 m) is not used to quantise
+  ranges (gz-sensors 8.2.2 `Lidar.cc` [SRC]).
 
 ### 5.2 Cameras and stereo
 
@@ -216,7 +225,9 @@ Gazebo needs the standard deviation **per sample**, which is
 
 $$\sigma = N\sqrt{f_s}$$
 
-with $f_s$ the sample rate (`imu_white_noise`). For the ICM-45686 at 200 Hz this
+with $f_s$ the sample rate (`imu_white_noise`). The SDF gets this noise and
+the two biases below only with `gazebo_sensor_noise: true` (section 5.5); the
+numbers are still computed for the report. For the ICM-45686 at 200 Hz this
 gives 0.054 °/s and 0.99 mg.
 
 Two bias terms are added:
@@ -238,8 +249,11 @@ orientation.
 ### 5.4 GNSS
 
 A `navsat` sensor turns its world position into latitude, longitude and
-altitude using the world's `<spherical_coordinates>`, adding Gaussian
-horizontal and vertical noise.
+altitude using the world's `<spherical_coordinates>`. With
+`gazebo_sensor_noise: true` it adds Gaussian horizontal and vertical noise,
+but Gazebo applies the horizontal standard deviation in **degrees**, not
+metres (gz-sensors #325): 0.008 becomes about 890 m. One more reason the
+shipped config has the switch off.
 
 The dual-antenna receiver (`gnss_dual`) is simulated as two antennas: the
 **primary** gives the position, and the **primary → secondary** baseline
@@ -249,6 +263,27 @@ error would be $\sqrt2\,\sigma_h/B$ (0.86° for B = 0.75 m), while the real
 receiver solves the baseline jointly from carrier-phase measurements and
 reaches 0.1° at B = 1 m. The receiver's heading is instead emulated from ground
 truth plus datasheet noise by a separate ROS node (section 12).
+
+### 5.5 Gazebo's noise switch (`gazebo_sensor_noise`)
+
+`gazebo_sensor_noise: false` leaves every `<noise>` element out of the lidar,
+IMU and NavSat sensors. Gazebo then makes no noise model for them, and the
+values pass through unchanged (gz-sensors 8.2.2 `Lidar.cc`, `ImuSensor.cc`,
+`NavSatSensor.cc` [SRC]). So `/asv/lidar/points`, `/asv/imu/data` and
+`/asv/gnss/...` carry **clean** data, and the project's corruptor node adds
+realistic errors under `/asv/sensors/...`, from the same `sensor_specs`
+values (decisions D1 a and D2 a in `docs/master_plan.md`). Camera pixel noise
+is not affected by the switch: the corruptor does not touch images.
+
+Why a required key, not an optional one: if the line were missing, a default
+could silently bring Gazebo's noise back. The validator reports
+`gazebo_sensor_noise: missing` instead. For a one-off test with Gazebo's noise:
+`make_asv.py --set gazebo_sensor_noise=true`.
+
+The report's first line says which way the switch is set. Check of the clean
+output: `tools/check_clean_gnss.py <bag>` compares each fix with the true
+antenna position (ground truth plus the lever arm rotated by the true
+attitude).
 
 ## 6. Stage 3: assembly (`boat.py`)
 
@@ -590,16 +625,17 @@ distance up to which $\sigma_z/z < 10\,\%$: $z = 0.1\,fB/\sigma_\delta$.
 
 ## 12. Verification (`tests/test_asvgen.py`)
 
-`python3 -m unittest discover -s tests -v` runs 29 tests:
+`python3 -m unittest discover -s tests -v` runs the whole package's Python
+tests; the 32 of `test_asvgen.py` are:
 
 | Area | What is checked |
 |---|---|
 | Geometry | rotation matrices orthonormal; yaw 90° maps x→y; `to_child` inverts `to_parent`; upside-down detection |
 | Mass | CoG and inertia of point masses; sign of the product of inertia; box inertia formula |
 | Hydrostatics | segment area at half/full immersion; segment centroid $4r/3\pi$; Archimedes balance at the solved draft; overloaded boats refused |
-| Config | the shipped config is valid; missing fields, wrong types, unknown sensor type, duplicate names and missing spec fields are reported; unknown keys only warn; overrides by sensor name |
+| Config | the shipped config is valid; `gazebo_sensor_noise` missing or not a bool is an error; missing fields, wrong types, unknown sensor type, duplicate names and missing spec fields are reported; unknown keys only warn; overrides by sensor name |
 | Layout | shipped layout has no overlaps; an overlap and a box sunk into the deck are detected; antenna posts start on the hull surface; ray-box slab test; near-field results are consistent; the blind gap of a lidar at the bow equals its blind-cone radius |
-| Pipeline | SDF contains every sensor, 4 joints, 2 buoyancy plugins; mass bookkeeping; the report's whole-boat inertia includes the pods; unique topics and frames; IMU noise conversion; upside-down lidar looks down to −52°; camera horizon row formula |
+| Pipeline | SDF contains every sensor, 4 joints, 2 buoyancy plugins; mass bookkeeping; the report's whole-boat inertia includes the pods; unique topics and frames; IMU noise conversion; with the switch off, lidar, IMU and NavSat have no `<noise>` and the cameras keep theirs; with it on, all noise elements come back; upside-down lidar looks down to −52°; camera horizon row formula |
 | **Consistency with VRX** | VRX's `Surface` force law is re-implemented and applied to the *generated SDF*; at the predicted equilibrium height the total buoyancy equals the weight to 10⁻⁶ |
 
 The last test closes the loop between the analytical hydrostatics and the
@@ -678,9 +714,9 @@ Slightly forward of centre is optimal:
   dropouts are not modelled; water is invisible to it.
 * **Cameras:** pinhole without lens distortion, rolling shutter, motion blur,
   exposure or polariser effects. Stereo depth (if enabled) is ideal.
-* **GNSS:** constant noise level (RTK fixed or not, chosen by the spec); no
-  multipath, outages or RTK convergence; dual-antenna heading emulated outside
-  the SDF.
+* **GNSS:** Gazebo's fixes are exact (switch off); noise, RTK modes and
+  outages are the corruptor's job; dual-antenna heading emulated outside the
+  SDF.
 * **Mass budget** excludes cables and mounts; some masses are estimates
   (marked `[EST]` in the YAML).
 * **Line of sight** uses axis-aligned boxes around hulls, components, sensors
@@ -713,6 +749,7 @@ asv_sim/
 ├── models/asv/                     generated Gazebo model
 ├── tools/make_asv.py               entry point
 ├── tools/study_lidar_placement.py  lidar placement study (section 13.1)
+├── tools/check_clean_gnss.py       clean-GNSS check on a bag (section 5.5)
 ├── tools/asvgen/                   the generator package (this document)
 ├── tests/test_asvgen.py            verification
 └── docs/HOW_IT_WORKS.md            this file

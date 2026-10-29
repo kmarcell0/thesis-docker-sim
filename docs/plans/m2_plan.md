@@ -166,6 +166,129 @@ roll, pitch, yaw); the report gives the largest difference (expected a few mm).
   `gazebo_sensor_noise: false`; update `HOW_IT_WORKS.md`.
 - Ends the "GNSS noise ≈ 890 m" bug (master plan §2 item 1).
 
+### Brief (agreed on 2026-10-29)
+
+**1. Goal**
+Gazebo publishes clean IMU, GNSS and lidar data; camera pixel noise stays.
+
+**2. Decisions needed**
+No D-numbers open (D1 a, D2 a decided). One small design choice inside the brief:
+- **Key required or optional?** a) required top-level bool `gazebo_sensor_noise`
+  (missing key = clear error; recommended: a forgotten key can't silently bring the
+  noise back, which is exactly D2's worry). b) optional, default `true` (old behaviour).
+
+Marcell (2026-10-29): **a**, required key.
+
+**3. Why**
+- Every recording after M2.2 must have usable "clean" data; the corruptor and the
+  evaluation build on it. Feeds *Vehicle and Sensor Models*.
+- The recording check also proves the GNSS chain end to end (Gazebo NavSat → geodesy
+  helper → ENU) before any filter relies on it.
+
+**4. New ideas (glossary: "Clean/realistic", "Lever arm")**
+- **Clean vs realistic data**: Gazebo gives the perfect measurement; our own node
+  adds the errors, with correct units, seeds and logged true biases.
+- **Lever arm l**: the antenna isn't at base_link. Antenna position =
+  base_link position + R(φ,θ,ψ)·l, l = (−0.76, −0.33, 0.185) m [REPO asv.yaml].
+- **Interpolating ground truth to a stamp**: ground truth comes at 50 Hz, fixes at
+  10 Hz; we take the truth at the fix's own `header.stamp`.
+
+**5. What will change**
+- ⚠ `ws/src/asv_sim/config/asv.yaml`: new top-level key `gazebo_sensor_noise: false`
+  (datasheet noise values stay, the corruptor will read them).
+- ⚠ `tools/asvgen/config.py`: the key in `SECTIONS` as `BOOL`.
+- ⚠ `tools/asvgen/sensors.py`: `build_imu`, `_navsat` (both GNSS antennas) and
+  `build_lidar` leave out `<noise>` when the switch is off; cameras and the stereo
+  camera ignore the switch. The flag is passed from `build_sensors` (the
+  `BUILDERS` dispatch, line ~274) via `cfg`.
+- Regenerated with `python3 tools/make_asv.py`: `models/asv/model.sdf`,
+  `config/asv_*` (report gets a `gazebo_sensor_noise` line).
+- `tests/test_asvgen.py`: switch off → no `<noise>` in imu/navsat/lidar, cameras keep
+  it; switch on → noise as before; missing key → ConfigError.
+- New `tools/check_clean_gnss.py <bag>` (reuses `analyze_run.read_bag`,
+  `geodesy.read_geo_reference` + `LocalTangentPlane.to_enu`) and
+  `tests/test_check_clean_gnss.py` (interpolation and lever-arm maths on hand-made data).
+- `docs/HOW_IT_WORKS.md` (§5.3 IMU, §5.4 GNSS, lidar section, config reference): the switch.
+- `docs/master_plan.md` (mark, §2 item 1 "fixed"), `docs/plans/m2_plan.md` (brief,
+  report), `CLAUDE.md` Known state (drop the 890 m caveat; new test baseline).
+
+**6. How it works**
+Generator: `if cfg['gazebo_sensor_noise']: add <noise>` for the three sensor types.
+Without `<noise>`, gz-sensors adds nothing (to verify in gz-sensors source, not assume).
+
+Check tool, per fix k at stamp t_k, for each antenna (primary l, secondary l₂):
+- truth: p(t_k) linear between the two odom samples around t_k, q(t_k) by slerp
+- expected antenna position: a_k = p(t_k) + R(q(t_k))·l
+- measured: m_k = to_enu(lat_k, lon_k, alt_k)
+- error e_k = m_k − a_k; report max and RMS of |e_horizontal| and |e_up|.
+
+**7. How we will check it**
+- `grep -c '<noise' model.sdf` inside imu / navsat / lidar sensors = 0; camera sensors
+  still have it (the new unittest does this; also shown by hand).
+- Python unittest: 67 + new tests, all pass. `colcon test` for `asv_sim` (104 gtests;
+  `test_closed_loop` reads the regenerated `asv_report.json`) and `asv_core` (13).
+- Headless run: `maneuver.launch.py maneuver:=circle gui:=false` (turning, so the
+  lever-arm rotation matters), bag `ws/data/bags/m22_clean_gnss` with `/clock`,
+  ground-truth odom, both fixes, IMU; ~60 s sim → ~600 fixes per antenna.
+- Expected: largest error a few mm or less (geodesy round trip ≤ 3.3 nm; fixes every
+  100 ms land on 20 ms truth samples). One physics step (4 ms) of timing offset at
+  2 m/s would show as ~8 mm, so that size of error points to a stamp offset.
+  If it's larger: stop and report, don't tune.
+
+**8. What I can't check**
+- Nothing visual here. Not checked in this step: that the lidar points and IMU are
+  exactly noise-free (only the SDF shows it); lidar `range/resolution` 0.01 may still
+  quantise ranges (unverified; I'll look in gz-sensors source and say).
+
+
+### Report (2026-10-29)
+
+**1. What changed**
+- `config/asv.yaml`: new required key `gazebo_sensor_noise: false` (datasheet noise values unchanged).
+- `tools/asvgen/config.py`: the key is validated as a bool; missing → error.
+- `tools/asvgen/sensors.py`: `build_lidar`, `build_imu`, `_navsat` (both antennas) write `<noise>` only if the switch is on; `NOISE_SWITCHED` lists the types; cameras unchanged.
+- `tools/asvgen/analysis.py`: report line "Gazebo noise ON/OFF ..." and `gazebo_sensor_noise` in `asv_report.json`.
+- Regenerated `models/asv/model.sdf` (−105 lines: the noise blocks), `model.config`, `config/asv_*` (new fingerprint 39342ea90832).
+- `tools/check_clean_gnss.py` (new): per fix, truth interpolated to the stamp + R(q)·l vs. the fix in ENU.
+- Tests: `test_asvgen.py` +3 (switch off, switch on, key required), `test_check_clean_gnss.py` (new, 9).
+- Docs: `HOW_IT_WORKS.md` §4.1, §5 table note, §5.1, §5.3, §5.4, new §5.5, §12, §14, §16; `design.md` §13 (new fact); `master_plan.md` §2 item 1; `CLAUDE.md` known state and baseline.
+
+**2. How it was checked**
+- Sensors in the regenerated `model.sdf` (count of `<noise>`): lidar 0, imu 0, gnss_primary 0, gnss_secondary 0, zed_left 1, zed_right 1, cam_wide_front 1, zed_depth 0 (it never had one).
+- gz-sensors 8.2.2 source (the version in the container's `gz_sensors_vendor`): `Lidar.cc`, `ImuSensor.cc`, `NavSatSensor.cc` make a noise model only when the SDF noise type is not NONE, else the value passes through; lidar `RangeResolution()` is never used to quantise ranges [SRC].
+- `python3 -m unittest discover -s tests`: `Ran 79 tests ... OK` (was 67).
+- `colcon test --packages-select asv_core asv_sim` + `colcon test-result`: `128 tests, 0 errors, 0 failures` (13 + 104 gtests, unchanged).
+- Headless run `maneuver.launch.py maneuver:=circle gui:=false`, bag `ws/data/bags/m22_clean_gnss`: 66.4 s, 664 fixes per antenna, 3321 ground-truth samples; boat up to 0.98 m/s, |roll| ≤ 0.0063 rad, |pitch| ≤ 0.0158 rad.
+- `tools/check_clean_gnss.py`:
+  ```
+  /asv/gnss/fix (gnss_primary_link, lever arm [-0.76, -0.33, 0.185] m): 664 fixes, 664 stamped exactly on a truth sample
+    horizontal max 3.556e-09 m, RMS 1.891e-09 m; vertical max 2.792e-09 m, RMS 8.879e-10 m
+  /asv/gnss/secondary/fix (...[0.76, 0.33, 0.185] m): 664 fixes, 664 stamped exactly on a truth sample
+    horizontal max 3.424e-09 m, RMS 1.838e-09 m; vertical max 2.539e-09 m, RMS 8.767e-10 m
+  largest difference: 3.556e-09 m
+  ```
+  Same fixes compared without the lever arm: 0.83 m, so the check is sensitive to it.
+
+**3. What could not be checked**
+- The interpolation path never ran on real data: every fix stamp lands on a ground-truth sample (100 ms vs 20 ms). It is covered by unit tests only.
+- The IMU and lidar outputs were not compared with truth in a run; only the SDF and the gz-sensors source show they are noise-free. Marcell can look at `/asv/imu/data` at rest in a GUI run if he wants a visual check.
+- The circle runs at about 1 m/s, so a one-physics-step (4 ms) stamp offset would have shown as about 4 mm, not 8 mm as in the brief (2 m/s).
+
+**4. How to read the code**
+- Start at `sensors.expand()`: it passes `gazebo_noise` only to the types in `NOISE_SWITCHED`.
+- `build_imu`, `_navsat`, `build_lidar`: the `... if gazebo_noise else None` (E() skips None).
+- `check_clean_gnss.py`: `pose_at()` = p(t_k), q(t_k) (linear + `slerp()`); `rotate()` = R(q)·l; `antenna_errors()` = e_k = m_k − a_k; `summary()` = max/RMS.
+
+**5. Numbers for the thesis**
+- Clean GNSS fix vs. true antenna position: largest 3.6 nm horizontal, 2.8 nm vertical, 664 fixes per antenna, circle maneuver ~1 m/s [MEASURED, bag `m22_clean_gnss`]. The size is the geodesy round trip (≤ 3.3 nm, M2.1), not a sensor error.
+- GNSS lever arms: primary (−0.76, −0.33, 0.185) m, secondary (0.76, 0.33, 0.185) m [REPO `asv_frames.yaml`].
+- Gazebo NavSat applies horizontal noise in degrees (0.008 → ~890 m) [SRC, gz-sensors #325].
+
+**6. Check your understanding**
+1. Why is the key required instead of having a default value?
+2. If the fix stamps were one physics step (4 ms) late, about how large would the error be on this run, and in which direction?
+3. Why does dropping the lever arm give ~0.83 m and not exactly |l| = 0.85 m?
+
 ---
 
 ## M2.3 Topic names

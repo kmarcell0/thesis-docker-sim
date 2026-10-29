@@ -20,6 +20,16 @@ def close(a, b, tol=1e-9):
     return abs(a - b) <= tol
 
 
+def noise_by_sensor_type(boat):
+    """{sensor type: number of <noise> elements in all sensors of that type}."""
+    model = ET.fromstring(sdf_model.to_sdf(boat).split('\n', 1)[1]).find('model')
+    counts = {}
+    for sensor in model.find('link').findall('sensor'):
+        t = sensor.get('type')
+        counts[t] = counts.get(t, 0) + len(sensor.findall('.//noise'))
+    return counts
+
+
 class Geometry(unittest.TestCase):
     def test_rotation_is_orthonormal(self):
         R = geo.rot([0.3, -0.7, 2.1])
@@ -105,6 +115,15 @@ class Config(unittest.TestCase):
         self.assertIn('used twice', msg)
         self.assertIn('"sonar" is not one of', msg)
         self.assertIn('zed2i_4mm.baseline: missing', msg)
+
+    def test_noise_switch_is_required(self):
+        """D2 a: without the key the generator stops, so a forgotten line can't
+        silently bring Gazebo's noise back."""
+        cfg = copy.deepcopy(self.base)
+        del cfg['gazebo_sensor_noise']
+        self.assertIn('gazebo_sensor_noise: missing', self.errors_of(cfg))
+        cfg['gazebo_sensor_noise'] = 0
+        self.assertIn('gazebo_sensor_noise: expected bool', self.errors_of(cfg))
 
     def test_unknown_key_is_only_a_warning(self):
         cfg = copy.deepcopy(self.base)
@@ -226,6 +245,19 @@ class Pipeline(unittest.TestCase):
         spec = {'rate': 100, 'gyro_noise_density': 1e-4, 'accel_noise_density': 1e-3}
         g, a = sensors.imu_white_noise(spec)
         self.assertTrue(close(g, 1e-3) and close(a, 1e-2))
+
+    def test_shipped_model_has_no_gazebo_noise(self):
+        """D2 a: with gazebo_sensor_noise false, lidar, IMU and NavSat carry no
+        <noise> at all; the cameras keep their pixel noise."""
+        self.assertFalse(self.boat.cfg['gazebo_sensor_noise'])
+        self.assertEqual(noise_by_sensor_type(self.boat), {
+            'gpu_lidar': 0, 'imu': 0, 'navsat': 0, 'camera': 3, 'depth_camera': 0})
+
+    def test_noise_switch_on_restores_gazebo_noise(self):
+        cfg, _, fp = config.prepare(CONFIG, ['gazebo_sensor_noise=true'])
+        counts = noise_by_sensor_type(boat_mod.build(cfg, fp))
+        # lidar 1; IMU 2 x 3 axes; 2 antennas x (horizontal + vertical)
+        self.assertEqual(counts, {'gpu_lidar': 1, 'imu': 6, 'navsat': 4, 'camera': 3, 'depth_camera': 0})
 
     def test_upside_down_lidar_looks_down(self):
         lid = self.metrics['sensors']['lidar']

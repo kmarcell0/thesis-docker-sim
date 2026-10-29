@@ -586,6 +586,13 @@ Checked facts (gz-sensors / gz-sim source code and the repository):
   dual-antenna heading sensor.
 - The IMU's orientation output is perfect (no noise), in ENU.
 - The NavSat sensor reports the antenna's position, not base_link's.
+- Without a `<noise>` element, the lidar, IMU and NavSat sensors make no noise
+  model and pass their values through unchanged (gz-sensors 8.2.2 `Lidar.cc`,
+  `ImuSensor.cc`, `NavSatSensor.cc`); the lidar's `range/resolution` is not
+  used to quantise ranges. Since M2.2 the generator writes no such element
+  (`gazebo_sensor_noise: false`). Measured (M2.2, circle maneuver, 664 fixes
+  per antenna): each clean fix equals ground truth + R(q)·l within 3.6 nm
+  [MEASURED]; every fix stamp lands on a 50 Hz ground-truth sample.
 - The NavSat latitude/longitude/altitude comes from gz-sim 8
   `sphericalCoordinates()` (`src/Util.cc`): gz-math 7.7.0
   `PositionTransform(world position, LOCAL2, SPHERICAL)`, i.e. ENU → ECEF

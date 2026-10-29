@@ -20,6 +20,10 @@ Supported types and what they become in Gazebo:
     imu            imu         (noise from datasheet noise densities)
     gnss           navsat
     gnss_dual      navsat (primary antenna) + navsat (secondary antenna)
+
+`gazebo_sensor_noise: false` in the YAML leaves Gazebo's noise out of the lidar,
+IMU and NavSat sensors (D1 a, D2 a: our corruptor adds it instead). Camera
+pixel noise is not switched: the corruptor does not touch images.
 """
 import math
 from dataclasses import dataclass, field
@@ -120,10 +124,11 @@ def _image_bridge(topic):
 
 
 # ------------------------------------------------------------------------ builders
-def build_lidar(s, spec, ns):
+def build_lidar(s, spec, ns, gazebo_noise):
     """3D lidar as a regular grid: `channels` beams spread over vfov, `h_samples`
     points per beam over 360 deg. The horizontal range stops one step short of
-    +180 deg so the first and last column do not overlap."""
+    +180 deg so the first and last column do not overlap. Range noise only
+    if gazebo_noise."""
     n, frame, topic = s['name'], f"{s['name']}_link", f"/{ns}/{s['name']}"
     lo, hi = spec['vfov']
     h = spec['h_samples']
@@ -135,7 +140,8 @@ def build_lidar(s, spec, ns):
                   V('min_angle', float(lo)), V('max_angle', float(hi)))),
               E('range', V('min', float(spec['range'][0])), V('max', float(spec['range'][1])),
                 V('resolution', 0.01)),
-              E('noise', V('type', 'gaussian'), V('mean', 0.0), V('stddev', float(spec['noise']))),
+              E('noise', V('type', 'gaussian'), V('mean', 0.0), V('stddev', float(spec['noise'])))
+              if gazebo_noise else None,
               V('visibility_mask', 7))       # bit 3 off: VRX water (flag 8) is invisible to it
     geom, size = BODY['livox_box']
     return dict(
@@ -197,7 +203,9 @@ def imu_white_noise(spec):
     return spec['gyro_noise_density'] * root, spec['accel_noise_density'] * root
 
 
-def build_imu(s, spec, ns):
+def build_imu(s, spec, ns, gazebo_noise):
+    """IMU with white noise, turn-on bias and drifting bias per axis if
+    gazebo_noise; without it, Gazebo's rates and accelerations are exact."""
     n, topic = s['name'], f"/{ns}/{s['name']}/data"
     g, a = imu_white_noise(spec)
     tau = spec.get('bias_drift_time', 0.0)
@@ -209,10 +217,11 @@ def build_imu(s, spec, ns):
         sigma_b = drift / math.sqrt(tau / 2) if drift and tau else 0.0
         return [E(ax, gaussian_noise(white, bias, sigma_b, tau)) for ax in 'xyz']
 
+    noise = [E('angular_velocity', *axes(g, spec.get('gyro_bias', 0.0), spec.get('gyro_bias_drift', 0.0))),
+             E('linear_acceleration', *axes(a, spec.get('accel_bias', 0.0), spec.get('accel_bias_drift', 0.0)))]
     imu = E('imu',
             E('orientation_reference_frame', V('localization', 'ENU')),
-            E('angular_velocity', *axes(g, spec.get('gyro_bias', 0.0), spec.get('gyro_bias_drift', 0.0))),
-            E('linear_acceleration', *axes(a, spec.get('accel_bias', 0.0), spec.get('accel_bias_drift', 0.0))))
+            noise if gazebo_noise else None)
     return dict(
         sdf=[_sensor(n, 'imu', s['xyz'], s['rpy'], f'{n}_link', topic, spec['rate'], imu)],
         bridge=[BridgeTopic(topic, 'sensor_msgs/msg/Imu', 'gz.msgs.IMU')],
@@ -221,25 +230,28 @@ def build_imu(s, spec, ns):
         masses=[MassItem(n, spec['mass'], s['xyz'], group='sensors')] if spec['mass'] > 0 else [])
 
 
-def _navsat(name, xyz, rpy, frame, topic, spec):
+def _navsat(name, xyz, rpy, frame, topic, spec, gazebo_noise):
+    # Gazebo applies the horizontal stddev in DEGREES, not metres (design.md
+    # section 13), so 0.008 here would mean ~890 m. Keep gazebo_noise off.
+    sensing = E('position_sensing',
+                E('horizontal', gaussian_noise(spec['horizontal_noise'])),
+                E('vertical', gaussian_noise(spec['vertical_noise'])))
     return _sensor(name, 'navsat', xyz, rpy, frame, topic, spec['rate'],
-                   E('navsat', E('position_sensing',
-                                 E('horizontal', gaussian_noise(spec['horizontal_noise'])),
-                                 E('vertical', gaussian_noise(spec['vertical_noise'])))))
+                   E('navsat', sensing if gazebo_noise else None))
 
 
-def build_gnss(s, spec, ns):
+def build_gnss(s, spec, ns, gazebo_noise):
     n, topic = s['name'], f"/{ns}/{s['name']}/fix"
     geom, size = BODY['antenna']
     return dict(
-        sdf=[_navsat(n, s['xyz'], s['rpy'], f'{n}_link', topic, spec)],
+        sdf=[_navsat(n, s['xyz'], s['rpy'], f'{n}_link', topic, spec, gazebo_noise)],
         bridge=[BridgeTopic(topic, 'sensor_msgs/msg/NavSatFix', 'gz.msgs.NavSat')],
         frames=[Frame('base_link', f'{n}_link', s['xyz'], s['rpy'])],
         visuals=[VisualSpec(f'{n}_antenna', s['xyz'], s['rpy'], geom, 'gnss', size)],
         masses=[MassItem(n, spec['mass'], s['xyz'], group='sensors')])
 
 
-def build_gnss_dual(s, spec, ns):
+def build_gnss_dual(s, spec, ns, gazebo_noise):
     """Dual-antenna receiver: the primary antenna gives the position, the
     primary -> secondary baseline gives the heading. Both antennas are
     simulated as NavSat sensors; the heading itself is NOT computed from them
@@ -250,8 +262,8 @@ def build_gnss_dual(s, spec, ns):
     t1, t2 = f'/{ns}/{n}/fix', f'/{ns}/{n}/secondary/fix'
     geom, size = BODY['antenna']
     return dict(
-        sdf=[_navsat(f'{n}_primary', p1, rpy, f'{n}_primary_link', t1, spec),
-             _navsat(f'{n}_secondary', p2, rpy, f'{n}_secondary_link', t2, spec)],
+        sdf=[_navsat(f'{n}_primary', p1, rpy, f'{n}_primary_link', t1, spec, gazebo_noise),
+             _navsat(f'{n}_secondary', p2, rpy, f'{n}_secondary_link', t2, spec, gazebo_noise)],
         bridge=[BridgeTopic(t1, 'sensor_msgs/msg/NavSatFix', 'gz.msgs.NavSat'),
                 BridgeTopic(t2, 'sensor_msgs/msg/NavSatFix', 'gz.msgs.NavSat')],
         frames=[Frame('base_link', f'{n}_primary_link', p1, rpy),
@@ -264,6 +276,7 @@ def build_gnss_dual(s, spec, ns):
 
 BUILDERS = {'lidar': build_lidar, 'camera': build_camera, 'stereo_camera': build_stereo,
             'imu': build_imu, 'gnss': build_gnss, 'gnss_dual': build_gnss_dual}
+NOISE_SWITCHED = ('lidar', 'imu', 'gnss', 'gnss_dual')     # obey gazebo_sensor_noise
 
 
 def expand(cfg):
@@ -271,6 +284,7 @@ def expand(cfg):
     parts = []
     for s in cfg['sensors']:
         spec = cfg['sensor_specs'][s['spec']]
-        data = BUILDERS[s['type']](s, spec, cfg['namespace'])
+        switch = {'gazebo_noise': cfg['gazebo_sensor_noise']} if s['type'] in NOISE_SWITCHED else {}
+        data = BUILDERS[s['type']](s, spec, cfg['namespace'], **switch)
         parts.append(SensorPart(name=s['name'], type=s['type'], spec_name=s['spec'], spec=spec, cfg=s, **data))
     return parts

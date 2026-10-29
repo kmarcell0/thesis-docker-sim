@@ -429,9 +429,14 @@ def analyze(boat, warnings=()):
     m_mass, m_hydro, l_mass = mass_and_hydro(boat)
     m_rb, l_rb = roboboat(boat)
     m_lay, l_lay = layout(boat)
-    metrics = {'name': boat.cfg['name'], 'fingerprint': boat.fingerprint,
+    noise = boat.cfg['gazebo_sensor_noise']
+    metrics = {'name': boat.cfg['name'], 'fingerprint': boat.fingerprint, 'gazebo_sensor_noise': noise,
                'mass': m_mass, 'hydrostatics': m_hydro, 'roboboat': m_rb, 'layout': m_lay, 'sensors': {}}
-    lines = [f'=== {boat.cfg["name"]} design report (fingerprint {boat.fingerprint}) ===', '']
+    lines = [f'=== {boat.cfg["name"]} design report (fingerprint {boat.fingerprint}) ===', '',
+             'Gazebo noise  ' + ('ON in lidar, IMU and NavSat (NavSat horizontal noise is applied in degrees!)'
+                                 if noise else
+                                 'OFF in lidar, IMU and NavSat: perfect data; the noise figures below are '
+                                 'datasheet values for the corruptor'), '']
     if warnings:
         lines += ['Config warnings:'] + [f'  {w}' for w in warnings] + ['']
     lines += l_lay + [''] + l_mass + [''] + l_rb + ['']

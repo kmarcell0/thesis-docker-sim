@@ -1,6 +1,7 @@
 {
   "name": "asv",
-  "fingerprint": "138175366d5e",
+  "fingerprint": "39342ea90832",
+  "gazebo_sensor_noise": false,
   "mass": {
     "total_kg": 18.191,
     "total_lbs": 40.1,

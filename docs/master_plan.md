@@ -113,7 +113,10 @@ These are known problems, found while checking the repository (GitHub commit
    `horizontal_noise: 0.008` (metres) into Gazebo's NavSat noise, which Gazebo
    applies in **degrees**. 0.008° is about 887 m north and 791 m east at the
    course's latitude (27.37°). See `models/asv/model.sdf:514` and `:537`. Any
-   data recorded so far with this model has useless GNSS. Fixed by M2.2.
+   data recorded so far with this model has useless GNSS. Fixed by M2.2
+   (2026-10-29): Gazebo's NavSat, IMU and lidar noise are off
+   (`gazebo_sensor_noise: false`); clean fixes match the true antenna position
+   within 3.6 nm.
 2. **The C++ code that the old docs describe was never written.**
    `milestone1_plan.md` and `CONTEXT.md` say that `asv_sim::mix()` "already
    exists, unit tested" and that 8 C++ tests pass. (The old `CLAUDE.md` correctly
@@ -213,7 +216,7 @@ Step 2 design (found 2026-10-10) that the M1.2 brief must settle with Marcell.
 | Step | What | Done when | Thesis section |
 |---|---|---|---|
 | `[x]` M2.1 | **Geodesy helper** in the new ROS-free package `asv_core` (D13 a; ⚠ first new package, `<depend>` on Eigen): latitude/longitude ↔ local east/north/up, using the world's reference point (read from the world SDF) and the WGS84 ellipsoid, the same as Gazebo. Same maths in Python for checks and evaluation. | Unit tests: the reference point maps to (0, 0, 0); a point 100 m east and 100 m north converts there and back within 1 mm; C++ and Python give the same numbers. | Coordinate Frames and Transformations |
-| `[ ]` M2.2 | **Switch Gazebo's IMU, NavSat and lidar noise off** (D1 a, D2 a: ⚠ a generator change and a new `asv.yaml` key `gazebo_sensor_noise`) and regenerate; camera noise stays. Update `HOW_IT_WORKS.md` for the switch. | The regenerated `model.sdf` has no `<noise>` in the IMU, NavSat and lidar sensors and still has it in the cameras. On a short recording, each clean GNSS fix, converted with the geodesy helper, equals the true antenna position (ground-truth pose interpolated to the fix stamp, plus the lever arm rotated by the true roll, pitch and yaw). The report gives the largest difference (expected: a few mm; one physics step off at 2 m/s would show as 8 mm). | Vehicle and Sensor Models |
+| `[x]` M2.2 | **Switch Gazebo's IMU, NavSat and lidar noise off** (D1 a, D2 a: ⚠ a generator change and a new `asv.yaml` key `gazebo_sensor_noise`) and regenerate; camera noise stays. Update `HOW_IT_WORKS.md` for the switch. | The regenerated `model.sdf` has no `<noise>` in the IMU, NavSat and lidar sensors and still has it in the cameras. On a short recording, each clean GNSS fix, converted with the geodesy helper, equals the true antenna position (ground-truth pose interpolated to the fix stamp, plus the lever arm rotated by the true roll, pitch and yaw). The report gives the largest difference (expected: a few mm; one physics step off at 2 m/s would show as 8 mm). | Vehicle and Sensor Models |
 | `[-]` M2.3 | **Topic names**: not needed as a step after D3 b (2026-10-11). The bridge keeps its names (`/asv/imu/data`, `/asv/gnss/fix`, `/asv/lidar/points`: clean data); the corruptor publishes realistic data under `/asv/sensors/...` (M2.6). The topic table in `design.md` §1 is already updated. | skipped | Software Architecture |
 | `[ ]` M2.4 | `asv_msgs` package (⚠ new package and dependencies, rosidl): BuoyDetection(Array) with an UNKNOWN colour, Landmark(Array), GnssHeading, SensorStatus; no roll/pitch message (D11, 2026-10-21). (The GNSS velocity for D5 C needs no new type: geometry_msgs/TwistWithCovarianceStamped.) | Builds; every field documented with its unit and frame. | Software Architecture |
 | `[ ]` M2.5 | **Noise library** in `asv_core` (D13 a): white noise, turn-on bias, slowly wandering (Gauss-Markov) bias, one random stream per sensor, time steps taken from timestamps. | The three noise tests in `design.md` §4.5 pass (white noise alone; Gauss-Markov alone with a short test correlation time; both together at τ = 1, 10 and 30 s against the analytic total). | Noise Models; Vehicle and Sensor Models |

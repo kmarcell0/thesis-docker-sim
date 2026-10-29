@@ -1,4 +1,6 @@
-=== asv design report (fingerprint 138175366d5e) ===
+=== asv design report (fingerprint 39342ea90832) ===
+
+Gazebo noise  OFF in lidar, IMU and NavSat: perfect data; the noise figures below are datasheet values for the corruptor
 
 Layout     OK: no overlapping components, sensors or mounts
 

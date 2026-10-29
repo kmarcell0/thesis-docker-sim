@@ -21,6 +21,7 @@ VEC2, VEC3 = 'vec2', 'vec3'
 SECTIONS = {
     'name': STR,
     'namespace': STR,
+    'gazebo_sensor_noise': BOOL,     # Gazebo's IMU/NavSat/lidar noise on or off (D2 a)
     'hull': {'length': NUM, 'radius': NUM, 'spacing': NUM, 'mass': NUM},
     'deck': {'length': NUM, 'width': NUM, 'thickness': NUM, 'height': NUM, 'mass': NUM},
     'thrusters': {'x': NUM, 'depth': NUM, 'mass': NUM, 'max_thrust': NUM, 'min_thrust': NUM,
