@@ -49,6 +49,7 @@ publish-time stamps [SRC AP_DDS], so the real boat needs a small converter node
 | `/asv/ground_truth/odom` | nav_msgs/Odometry | 50 Hz [REPO] | bridge (Gazebo OdometryPublisher) | ground truth |
 | `/asv/ground_truth/buoys` | asv_msgs/LandmarkArray (latched) | once | ground-truth tool (M2.7) | ground truth |
 | `/asv/ground_truth/gnss_status` | asv_msgs/GnssStatus | 10 Hz | corruptor | ground truth (true fix mode, outage flag) |
+| `/asv/ground_truth/imu_bias` | sensor_msgs/Imu | 200 Hz | corruptor (M2.6a) | ground truth: true total IMU bias b0 + b(k), gyro in angular_velocity, accelerometer in linear_acceleration; same stamp as the corrupted sample |
 | `/asv/imu/data` | sensor_msgs/Imu | 200 Hz [REPO] | bridge | clean after M2.2 (orientation perfect); until then it carries Gazebo's IMU noise |
 | `/asv/gnss/fix` | sensor_msgs/NavSatFix | 10 Hz [REPO] | bridge | clean |
 | `/asv/gnss/secondary/fix` | sensor_msgs/NavSatFix | 10 Hz [REPO] | bridge | clean (only for checks) |
@@ -165,15 +166,15 @@ multipliers, schedules, overrides and the seed.
 
 - **White noise** per sample: σ = η / √dt, with η the noise density and dt from
   the stamps. Nominal [DS, `asv.yaml`]: gyro η = 6.632e-5 rad/s/√Hz, accelerometer
-  η = 6.865e-4 m/s²/√Hz. At 200 Hz that is 9.4e-4 rad/s (0.054 °/s) and 9.7e-3
-  m/s² (0.99 mg), the same as `asv_report.json`. Pending (`decision_notes.md`
-  D11): the accelerometer density at ArduPilot's ±32 g range is 110 µg/√Hz
-  (1.079e-3 m/s²/√Hz, DS-000577 Table 2), awaiting Marcell's OK.
+  η = 1.079e-3 m/s²/√Hz (110 µg/√Hz at ±32 g, the range ArduPilot uses,
+  DS-000577 Table 2; decided 2026-10-29, D11 question 9; was 70 µg/√Hz, the
+  ±8 g row). At 200 Hz that is 9.4e-4 rad/s (0.054 °/s) and 1.53e-2 m/s²
+  (1.55 mg), as in `asv_report.json`; on the 4 ms steps 1.049e-3 rad/s and
+  1.706e-2 m/s².
   Convention (M2.5, decided 2026-10-29): σ = η/√dt, so the Allan deviation is
   η/√τ. TDK's own definition of the density would give a per-sample σ √2
   smaller; not used.
-- The clean IMU topic still carries Gazebo's own IMU noise until M2.2 switches
-  it off, so M2.2 comes before the IMU corruptor is tested.
+- Since M2.2 the clean IMU topic `/asv/imu/data` is exact (no Gazebo noise).
 - **Turn-on bias**: one draw per run [EST, `asv.yaml`]: gyro σ = 0.0017 rad/s,
   accelerometer σ = 0.02 m/s². It stays constant for the whole run. (Gazebo's IMU
   uses one variable for both biases, so when its wandering bias is switched on,
@@ -200,6 +201,22 @@ multipliers, schedules, overrides and the seed.
   density and the fused rate (variance = η²·f_fuse) and skip repeated samples.
 - The corruptor logs every true bias value, so trajectory.csv can hold them
   whatever D5 decides.
+- **As built (M2.6a):** `asv_core/imu_corruptor.hpp` (`ImuCorruptor`, the same
+  error model on each of the 3 axes of gyro and accelerometer, 18 streams
+  `imu.<gyro|accel>_<x|y|z>.<white|turn_on|drift>`); `asv_sim/imu_corruption.hpp`
+  (parameters = `asv.yaml` value × profile multiplier; message in → message
+  out); node `corruptor` (`ros2 run asv_sim corruptor --ros-args -p
+  use_sim_time:=true [-p noise_profile:=nominal]`). Output: same header as the
+  clean message; quaternion all zero and `orientation_covariance[0] = −1`; the
+  other covariances all zero ("unknown": the filter takes its noise from its
+  own config). True bias on `/asv/ground_truth/imu_bias`. The first message
+  (no dt) and any message whose stamp is not later than the previous one are
+  dropped. The accelerometer keeps gravity (specific force, as Gazebo gives
+  it).
+- **Left out (D11 question 8 a, 2026-10-29):** per-run scale-factor error
+  (±0.2 % [DS]) and axis misalignment; a limitation for the thesis. At a
+  0.5 rad/s turn 0.2 % is 1e-3 rad/s, of the size of the turn-on bias, and only
+  while turning.
 
 ### 4.2 GNSS position
 
@@ -283,7 +300,9 @@ metres, converts back to latitude/longitude, and publishes a NavSatFix.
      equals the analytic total √(η²/τ + σ_A²(τ)). At τ = 1 s the bias part is
      small (it adds 1.0 % for the gyro, 5.7 % for the accelerometer); from τ = 10 s
      on it is larger than the white-noise part (+72 % and +254 %), so an
-     implementation that forgets the bias can't pass.
+     implementation that forgets the bias can't pass. (The accelerometer
+     numbers and `test_noise` use the M2.5 density 70 µg/√Hz; since M2.6a the
+     nominal value is 110 µg/√Hz. The test still checks the code.)
   - Tolerances (M2.5): 5 % relative. Record lengths: test 1 10 h, tests 2
     and 3 40 h at 200 Hz (with 10 h the worst error over 10 seeds was 4.67 %
     at τ = 30 s; with 40 h it is 2.08 % [MEASURED]). Nothing tests the

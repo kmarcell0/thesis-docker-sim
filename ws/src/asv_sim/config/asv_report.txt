@@ -1,4 +1,4 @@
-=== asv design report (fingerprint 39342ea90832) ===
+=== asv design report (fingerprint 80b8183fdba9) ===
 
 Gazebo noise  OFF in lidar, IMU and NavSat: perfect data; the noise figures below are datasheet values for the corruptor
 
@@ -47,7 +47,7 @@ Camera "cam_wide_front": 960x600 @ 30 Hz, 85 x 60 deg, 0.28 m above water
     Sur-Mark buoy                       48      24      12       6
   >= 20 px wide up to: A-0 buoy 5 m, A-2 buoy 10 m, Sur-Mark buoy 12 m
 
-IMU "imu" @ 200 Hz: white noise per sample 0.054 deg/s, 0.99 mg; 0.12 m from the CoG (0.030 m/s^2 extra in a 0.5 rad/s turn)
+IMU "imu" @ 200 Hz: white noise per sample 0.054 deg/s, 1.55 mg; 0.12 m from the CoG (0.030 m/s^2 extra in a 0.5 rad/s turn)
 
 Dual GNSS "gnss": baseline 1.66 m at +23.5 deg to the bow -> heading accuracy ~0.06 deg (datasheet 0.1 deg at 1 m, scaled with 1/baseline)
   two independently noisy fixes would give 0.39 deg -> emulate the receiver heading from ground truth + noise

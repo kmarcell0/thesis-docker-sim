@@ -20,6 +20,8 @@
   <!-- teleop node (M1.8, T1 a): reads asv.yaml and teleop.yaml itself -->
   <depend>ament_index_cpp</depend>
   <depend>yaml_cpp_vendor</depend>
+  <!-- corruptor node (M2.6a): sensor_msgs/Imu in and out -->
+  <depend>sensor_msgs</depend>
 
   <exec_depend>ros_gz_sim</exec_depend>
   <exec_depend>ros_gz_bridge</exec_depend>

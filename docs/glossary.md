@@ -177,8 +177,21 @@ down).
 **Low-pass filter.** Removes fast changes from a signal; the price is a delay.
 
 **Noise profile.** A file `asv_sim/config/noise_profiles/<name>.yaml` that sets
-the corruptor's multipliers, switches and seed. The "white" profile turns every
-extra effect off (white noise only), for the matched check.
+the corruptor's multipliers, switches and seed. A multiplier scales the
+nominal value from `asv.yaml` (1 = as in `asv.yaml`, 0 = that error off), so
+the datasheet numbers live in one place. `nominal.yaml` (M2.6a) uses every
+value as it is. The "white" profile turns every extra effect off (white noise
+only), for the matched check.
+
+**"Not available" field.** In a ROS message, a value that the sensor does not
+measure. sensor_msgs/Imu marks a missing orientation with
+`orientation_covariance[0] = −1`; a covariance of all zeros means "unknown".
+The corrupted IMU (M2.6a) has no orientation, because a real raw IMU does not
+measure heading.
+
+**Specific force.** What an accelerometer really measures: acceleration minus
+gravity, so a boat at rest reads +9.81 m/s² upward on z. Gazebo's IMU and our
+corrupted IMU both give it this way.
 
 **Real-time factor.** Simulated seconds per wall-clock second (1.0 = real time).
 

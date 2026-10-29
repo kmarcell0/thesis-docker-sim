@@ -576,6 +576,144 @@ nominal or own study) and 9 (accelerometer density 110 µg/√Hz in `asv.yaml`,
 ⚠ value change) are raised in this brief. With D5 C the filter does not use the
 accelerometer.
 
+#### Brief (agreed on 2026-10-29)
+
+**Summary (in plain words)**
+Since M2.2 Gazebo's IMU is perfect. In M2.5 we wrote the noise "dice"; this
+step uses them. A new node, `corruptor`, reads every clean IMU message, adds
+three errors on each axis and publishes the result as the "realistic" IMU.
+Example: a clean yaw rate of 0.100 rad/s may come out as 0.1021 (0.0017
+turn-on offset + a slowly drifting offset + a little jitter). It removes the
+orientation (a real raw IMU does not measure heading) and publishes the true
+offsets on a separate ground-truth topic, so the evaluation can later compare
+them with the filter's estimate. IMU only for now: GNSS joins in M2.6b/c, the
+recording check is M2.6d. No change to Gazebo, the world or the filter.
+
+**1. Goal:** `/asv/sensors/imu/data`: gyro and accelerometer with white noise,
+turn-on bias and Gauss-Markov bias, the original stamp, no orientation.
+
+**2. Decisions needed** (D11 questions 8 and 9)
+- Q8 per-run scale-factor and misalignment error: a) leave out now, a
+  limitation (recommended); b) a switch, off in nominal; c) on in nominal.
+- Q9 ⚠ accelerometer density in `asv.yaml` 70 → 110 µg/√Hz (±32 g range,
+  DS-000577 Table 2): a) yes (recommended); b) keep 70 µg/√Hz.
+
+Marcell (2026-10-29): **Q8 a**, **Q9 a** (asked first what "the filter does not
+use the accelerometer" means: with D5 C the prediction uses GNSS velocity and
+gyro yaw rate only, so the change affects the parameter table, not results).
+
+**3. Why:** the filter (M3) must never see perfect data. Feeds: Vehicle and
+Sensor Models; Noise Models; App. B Parameter Tables.
+
+**4. New ideas:** noise profile (`noise_profiles/nominal.yaml`: seed and
+multipliers gyro/accel × white/turn-on/drift, 1 = datasheet, 0 = off; T_c
+override; nominal values stay in `asv.yaml`); "not available" fields
+(`orientation_covariance[0] = −1`; the other covariances all zero = unknown,
+the filter takes its noise from its own config); true-bias log (b₀ + b_GM per
+axis on `/asv/ground_truth/imu_bias`, sensor_msgs/Imu, same stamp).
+
+**5. What will change:** `asv_core`: `imu_corruptor.hpp/.cpp` (ROS-free, 3
+axes × 2 sensors × 3 parts = 18 named streams like `imu.gyro_z.white`),
+`test/test_imu_corruptor.cpp`, `CMakeLists.txt`. `asv_sim`:
+`include/asv_sim/imu_corruption.hpp` + src (profile merge with `asv.yaml`,
+clean Imu message → corrupted one), `src/corruptor_node.cpp` (I/O only),
+`config/noise_profiles/nominal.yaml`, `test/test_imu_corruption.cpp`,
+`CMakeLists.txt`, ⚠ `package.xml` `<depend>sensor_msgs</depend>`. ⚠
+`asv.yaml` (Q9 a) + `make_asv.py`. Docs: `design.md` §1, §4.1, `glossary.md`,
+`decision_notes.md`, this plan, `master_plan.md`, `CLAUDE.md`.
+
+**6. How it works:** per axis i: measured_i = true_i + b₀,i + b_GM,i(k) +
+n_i(k); n = η/√Δt · w with Δt from consecutive stamps; b₀ ~ N(0, σ₀²) once per
+run; b_GM(k+1) = φ·b_GM(k) + σ_ss·√(1−φ²)·w, φ = e^(−Δt/T_c). The first
+message (no Δt) and messages with Δt ≤ 0 are dropped (warning). The
+accelerometer keeps gravity as Gazebo gives it (specific force).
+
+**7. How we will check it:** `asv_core` gtests: same seed → same output;
+output − logged bias has mean ≈ 0 and spread η/√Δt (5 %; gyro at 4 ms
+1.049e-3 rad/s); turn-on spread over seeds = σ₀; multiplier 0 switches a part
+off exactly. `asv_sim` gtests: two inputs differing only in yaw give
+bit-identical outputs; `orientation_covariance[0] = −1`; stamp copied; first
+message dropped; profile merge. Live: headless sim + `ros2 run asv_sim
+corruptor`, `ros2 topic hz` ≈ 200 Hz on both topics. Counts: `asv_core` 31 →
+about 39, `asv_sim` 104 → about 110, Python 84.
+
+**8. What I can't check:** that these errors match a real Pixhawk 6X.
+
+#### Report (2026-10-29)
+
+**1. What changed**
+- `asv_core/include/asv_core/imu_corruptor.hpp`, `src/imu_corruptor.cpp`
+  (new): `ImuCorruptor::process()` = measured = true + b₀ + b(k) + n(k) on
+  3 axes of gyro and accelerometer; returns the true bias too; drops the first
+  sample and stamps that are not later than the last (integer ns, no state
+  change).
+- `asv_core/test/test_imu_corruptor.cpp` (new, 8 gtests); `CMakeLists.txt`.
+- `asv_sim/include/asv_sim/imu_corruption.hpp`, `src/imu_corruption.cpp`
+  (new, library `asv_sim_corruptor`): `imu_error_params()` (asv.yaml ×
+  profile), `profile_seed()`, `corrupt_imu()` (clean Imu → data + bias
+  messages).
+- `asv_sim/src/corruptor_node.cpp` (new): node `corruptor`, I/O only.
+- `asv_sim/config/noise_profiles/nominal.yaml` (new): seed 1, all multipliers 1.
+- `asv_sim/test/test_imu_corruption.cpp` (new, 7 gtests); `CMakeLists.txt`;
+  ⚠ `package.xml` `<depend>sensor_msgs</depend>`.
+- ⚠ `asv.yaml`: `accel_noise_density` 6.865e-4 → 1.079e-3 (Q9 a); regenerated
+  with `make_asv.py`: only the fingerprint lines and the report's IMU line
+  changed (0.99 mg → 1.555 mg per sample); no physics change.
+- Docs: `design.md` §1 (new topic `/asv/ground_truth/imu_bias`), §4.1
+  (density, as built, left-out scale/misalignment), §4.5 (note: its
+  accelerometer numbers use the M2.5 value); `glossary.md` (noise profile,
+  "not available" field, specific force); `decision_notes.md` (D11 q8 a, q9 a);
+  `master_plan.md`; `CLAUDE.md`; `HOW_IT_WORKS.md` §5 (report number 1.55 mg).
+
+**2. How it was checked**
+- First `test_imu_corruptor` run: 2 failures in
+  `ErrorMinusBiasIsWhiteNoiseOfTheProfile` (ratio 0.913). Test bug: the
+  "4 ms steps" filter `i % 4 != 0` also took the 8 ms step (it ends at
+  `i % 4 == 1`). Fixed by selecting on the step's own dt; library unchanged.
+- `colcon test --packages-select asv_core asv_sim` + `colcon test-result`:
+  `164 tests, 0 errors, 0 failures, 0 skipped` (asv_core 31 + 8 = 39,
+  asv_sim 104 + 7 = 111, 14 CTest wrappers). `test_imu_corruptor` 2.4 s.
+- `python3 -m unittest discover -s tests`: `Ran 84 tests ... OK`.
+- Live (headless sim + `ros2 run asv_sim corruptor`): log `profile 'nominal',
+  seed 1; gyro eta 6.632e-05, b0 0.0017, b_ss 0.0002; accel eta 0.001079,
+  b0 0.02, b_ss 0.005; T_c 300 s`, no warnings. `ros2 node info /corruptor`:
+  subscribes `/asv/imu/data`, publishes `/asv/sensors/imu/data`,
+  `/asv/ground_truth/imu_bias`. `ros2 topic hz` ≈ 184 Hz (wall clock,
+  real-time factor below 1).
+- 22 s bag `ws/data/bags/m26a_check` (script `ws/data/m26a_check.py`, not
+  committed): 4335 corrupted stamps = 4335 clean stamps in the same window,
+  0 missing, 0 extra; 200.02 Hz in sim time; steps 4 and 8 ms; every message
+  `orientation_covariance[0] = −1`, quaternion 0. Corrupted − clean − bias on
+  4 ms steps: gyro std 1.0445e-3 / 1.0494e-3 / 1.0582e-3 rad/s (expected
+  1.049e-3), accel 1.7099e-2 / 1.6973e-2 / 1.6548e-2 m/s² (expected
+  1.706e-2; n = 3251 each, so about ±1.2 % from chance; z is −3.0 %).
+  Clean accel z mean 9.798 m/s² (specific force).
+
+**3. What could not be checked:** that the model matches a real Pixhawk 6X;
+the corruptor is not in a launch file yet (M2.6d).
+
+**4. How to read the code:** start with `imu_corruptor.hpp` (equations in the
+header comment), then `ImuCorruptor::process()` and `corrupt()` in
+`imu_corruptor.cpp` (b = b₀ + b(k) with b(k) stepped by dt; measured = true + b
++ n). Then `imu_corruption.cpp`: `imu_error_params()` (asv.yaml × profile),
+`corrupt_imu()` (builds the output from the new numbers only). The node
+`corruptor_node.cpp` only wires topics.
+
+**5. Numbers for the thesis**
+- Accelerometer density 1.079e-3 m/s²/√Hz (110 µg/√Hz at ±32 g) [DS
+  DS-000577 Table 2]; per sample at 200 Hz 1.55 mg [REPO asv_report.json].
+- Per-sample σ on 4 ms steps: gyro 1.049e-3 rad/s, accel 1.706e-2 m/s² [REPO,
+  σ = η/√dt]; measured in Gazebo 1.0445–1.0582e-3 rad/s and
+  1.6548–1.7099e-2 m/s² [MEASURED, 22 s].
+- Nominal profile: seed 1, all multipliers 1 [REPO].
+
+**6. Check your understanding**
+1. Why does the corruptor drop the very first IMU message?
+2. Two runs differ only in the true yaw, yet the outputs are bit-identical.
+   Why does that prove the true yaw cannot leak?
+3. Why can the accelerometer density change without changing any filter
+   result (D5 C)?
+
 ### M2.6b GNSS position
 **Goal:** `/asv/sensors/gnss/fix`: antenna position + white and slowly varying
 error per mode (RTK fixed / float / standalone), outages from a schedule,

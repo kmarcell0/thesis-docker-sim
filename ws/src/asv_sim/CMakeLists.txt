@@ -60,10 +60,29 @@ target_link_libraries(teleop
   yaml-cpp::yaml-cpp
   ${std_msgs_TARGETS}
 )
-install(TARGETS waypoint_follower maneuver_player teleop DESTINATION lib/${PROJECT_NAME})
+# Corruptor (M2.6a, IMU): the message glue is its own library (ROS messages,
+# no node), so it is unit tested; the maths is in asv_core.
+find_package(sensor_msgs REQUIRED)
+add_library(asv_sim_corruptor src/imu_corruption.cpp)
+target_include_directories(asv_sim_corruptor PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(asv_sim_corruptor PUBLIC
+  asv_core::asv_core
+  yaml-cpp::yaml-cpp
+  ${sensor_msgs_TARGETS}
+)
+add_executable(corruptor src/corruptor_node.cpp)
+target_link_libraries(corruptor
+  asv_sim_corruptor
+  rclcpp::rclcpp
+  ament_index_cpp::ament_index_cpp
+)
+install(TARGETS waypoint_follower maneuver_player teleop corruptor DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/ DESTINATION include)
-install(TARGETS asv_sim_guidance
+install(TARGETS asv_sim_guidance asv_sim_corruptor
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -105,6 +124,11 @@ if(BUILD_TESTING)
   ament_add_gtest(test_maneuver_files test/test_maneuver_files.cpp)
   target_link_libraries(test_maneuver_files asv_sim_guidance yaml-cpp::yaml-cpp)
   target_compile_definitions(test_maneuver_files PRIVATE
+    ASV_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
+  # IMU corruption glue (M2.6a): reads config/asv.yaml and noise_profiles/.
+  ament_add_gtest(test_imu_corruption test/test_imu_corruption.cpp)
+  target_link_libraries(test_imu_corruption asv_sim_corruptor)
+  target_compile_definitions(test_imu_corruption PRIVATE
     ASV_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
 endif()
 

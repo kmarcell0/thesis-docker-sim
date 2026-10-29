@@ -228,7 +228,7 @@ $$\sigma = N\sqrt{f_s}$$
 with $f_s$ the sample rate (`imu_white_noise`). The SDF gets this noise and
 the two biases below only with `gazebo_sensor_noise: true` (section 5.5); the
 numbers are still computed for the report. For the ICM-45686 at 200 Hz this
-gives 0.054 °/s and 0.99 mg.
+gives 0.054 °/s and 1.55 mg (accelerometer 110 µg/√Hz at ±32 g, M2.6a).
 
 Two bias terms are added:
 

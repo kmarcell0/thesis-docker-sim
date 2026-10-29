@@ -1,6 +1,6 @@
 {
   "name": "asv",
-  "fingerprint": "39342ea90832",
+  "fingerprint": "80b8183fdba9",
   "gazebo_sensor_noise": false,
   "mass": {
     "total_kg": 18.191,
@@ -374,7 +374,7 @@
     "imu": {
       "rate_hz": 200,
       "gyro_noise_deg_s": 0.0537,
-      "accel_noise_mg": 0.99,
+      "accel_noise_mg": 1.555,
       "lever_arm_from_cog_m": [
         -0.102,
         0.0,

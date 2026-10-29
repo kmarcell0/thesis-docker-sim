@@ -1,0 +1,19 @@
+# Noise profile "nominal" (M2.6a): the sensor errors exactly as asv.yaml
+# sensor_specs gives them. A profile holds only the seed, multipliers and
+# overrides (design.md section 4); the nominal values stay in asv.yaml.
+# Multiplier 1.0 = the asv.yaml value, 0.0 = that error switched off.
+# All keys are required except the overrides.
+
+seed: 1                     # global seed; every noise source gets its own
+                            # stream from (seed, source name), noise.hpp
+
+imu:                        # spec of the sensor with type imu in asv.yaml
+  gyro:
+    white: 1.0              # x gyro_noise_density
+    turn_on: 1.0            # x gyro_bias
+    drift: 1.0              # x gyro_bias_drift
+  accel:
+    white: 1.0              # x accel_noise_density
+    turn_on: 1.0            # x accel_bias
+    drift: 1.0              # x accel_bias_drift
+  # drift_time: 300         # optional override of bias_drift_time (s)

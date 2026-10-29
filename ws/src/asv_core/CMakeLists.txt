@@ -16,6 +16,7 @@ find_package(Eigen3 REQUIRED)
 add_library(asv_core
   src/angles.cpp
   src/geodesy.cpp
+  src/imu_corruptor.cpp
   src/noise.cpp
 )
 target_include_directories(asv_core PUBLIC
@@ -49,6 +50,10 @@ if(BUILD_TESTING)
   # Noise library (M2.5): statistics on 10-40 h records, so a longer timeout.
   ament_add_gtest(test_noise test/test_noise.cpp TIMEOUT 300)
   target_link_libraries(test_noise asv_core)
+
+  # IMU corruptor (M2.6a): 1 h record and 2000-seed spreads.
+  ament_add_gtest(test_imu_corruptor test/test_imu_corruptor.cpp TIMEOUT 120)
+  target_link_libraries(test_imu_corruptor asv_core)
 endif()
 
 ament_package()

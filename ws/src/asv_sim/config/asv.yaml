@@ -136,7 +136,8 @@ sensor_specs:
     mass: 0.0                     # counted in the electronics box
     rate: 200                     # [EST] rate the companion computer receives
     gyro_noise_density: 6.632e-5  # [DS] 3.8 mdps/sqrt(Hz)  -> rad/s/sqrt(Hz)
-    accel_noise_density: 6.865e-4 # [DS] 70 ug/sqrt(Hz)     -> m/s^2/sqrt(Hz)
+    accel_noise_density: 1.079e-3 # [DS] 110 ug/sqrt(Hz) at +-32 g, the range ArduPilot uses
+                                  #   (DS-000577 Table 2; 70 ug at +-8 g) -> m/s^2/sqrt(Hz)
     gyro_bias: 0.0017             # [EST] constant bias left after calibration (1 sigma), rad/s
     accel_bias: 0.02              # [EST] m/s^2
     gyro_bias_drift: 0.0002       # [EST] slowly wandering bias, steady-state 1 sigma, rad/s

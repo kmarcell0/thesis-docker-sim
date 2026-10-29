@@ -298,6 +298,10 @@ Questions:
    in its own study (so the white-noise study stays clean)?
 9. OK to change the accelerometer density to 110 µg/√Hz in `asv.yaml`?
 
+Answered in the M2.6a brief (2026-10-29): **8 a** (left out for now, a stated
+limitation; neither in the nominal profile nor as a study), **9 a** (changed to
+1.079e-3 m/s²/√Hz in `asv.yaml`).
+
 ## Smaller points
 
 - **D15** (GNSS lever arm): decided a for now; the M3.3b brief raises it again,
