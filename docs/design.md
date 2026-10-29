@@ -48,7 +48,7 @@ publish-time stamps [SRC AP_DDS], so the real boat needs a small converter node
 | `/clock` | rosgraph_msgs/Clock | every physics step | bridge | time |
 | `/asv/ground_truth/odom` | nav_msgs/Odometry | 50 Hz [REPO] | bridge (Gazebo OdometryPublisher) | ground truth |
 | `/asv/ground_truth/buoys` | asv_msgs/LandmarkArray (latched) | once | ground-truth tool (M2.7) | ground truth |
-| `/asv/ground_truth/gnss_status` | asv_msgs/SensorStatus | 10 Hz | corruptor | ground truth (true fix mode, outage flag) |
+| `/asv/ground_truth/gnss_status` | asv_msgs/GnssStatus | 10 Hz | corruptor | ground truth (true fix mode, outage flag) |
 | `/asv/imu/data` | sensor_msgs/Imu | 200 Hz [REPO] | bridge | clean after M2.2 (orientation perfect); until then it carries Gazebo's IMU noise |
 | `/asv/gnss/fix` | sensor_msgs/NavSatFix | 10 Hz [REPO] | bridge | clean |
 | `/asv/gnss/secondary/fix` | sensor_msgs/NavSatFix | 10 Hz [REPO] | bridge | clean (only for checks) |
@@ -528,7 +528,7 @@ Package names follow D13 a (decided 2026-10-11).
 | Package | Kind | Contains | Depends on |
 |---|---|---|---|
 | `asv_core` (new, D13) | ament_cmake, no ROS | geodesy, noise models, fake detector logic, measurement queue, EKF-SLAM, data association, ellipse helper; gtest | Eigen |
-| `asv_msgs` (new) | ament_cmake + rosidl | BuoyDetection(Array), Landmark(Array), GnssHeading, SensorStatus; no roll/pitch message (D11) | |
+| `asv_msgs` (new) | ament_cmake + rosidl | BuoyDetection(Array), Landmark(Array), GnssHeading, GnssStatus; no roll/pitch message (D11) | |
 | `asv_sim` (exists) | ament_cmake | world, models, generator, launch, guidance (M1), follower, player, teleop, corruptor node, fake detector node, ground-truth tools | asv_core, asv_msgs |
 | `asv_perception` (new, only if time: D8) | ament_cmake | lidar clustering, colour classification, fusion | asv_core, asv_msgs |
 | `asv_slam` (new) | ament_cmake | slam_node, slam_replay | asv_core, asv_msgs (not asv_sim) |
@@ -539,6 +539,20 @@ real-boat code and the Python tools can then use them without the simulator. (An
 ament_python package such as asv_eval can't define messages itself.)
 `asv_core` has its own plain structs (as M1's `NavState`); the nodes convert
 between them and the `asv_msgs` / ROS types, so `asv_core` stays ROS-free.
+Messages in `asv_msgs` (M2.4; every field commented with unit and frame in
+`asv_msgs/msg/*.msg`):
+- `BuoyColour` (UNKNOWN 0, RED 1, GREEN 2, YELLOW 3, BLACK 4), used by the next two.
+- `BuoyDetection(Array)`: range (m) and bearing (rad, CCW from base_link x) in the
+  level frame, colour, class BUOY / OTHER; stamp = scan time, frame `base_link`;
+  no σ (Q comes from the filter config, M2.4 A a) and no true ID; also published
+  empty.
+- `Landmark(Array)`: id, name and model (true map only), colour, radius, x, y (m,
+  frame `map`), 2×2 covariance (m², row-major; zero for the true map),
+  sightings, confirmed.
+- `GnssHeading`: azimuth α in [0, 2π), its σ, `baseline_fixed` (§4.3).
+- `GnssStatus` (ground truth only; named SensorStatus before M2.4 B b): mode
+  NO_FIX / STANDALONE / RTK_FLOAT / RTK_FIXED, `sky_view_outage`,
+  `corrections_lost`, `heading_available`.
 Contents so far (M2.1): `angles.hpp` (`wrap_angle()`, `yaw_from_quaternion()`,
 moved from `asv_sim`) and `geodesy.hpp` (`GeoPoint`, `LocalTangentPlane`). The
 C++ code takes the reference point as a value; reading it from the world SDF is

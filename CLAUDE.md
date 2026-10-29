@@ -188,7 +188,7 @@ raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M2.2): 79 Python tests, run with `unittest`; `colcon test`
+  Current baseline (M2.4): 84 Python tests, run with `unittest`; `colcon test`
   for `asv_core` runs 13 gtests (`test_angles` 6, `test_geodesy` 7) and for
   `asv_sim` 104 (`test_mix` 9, `test_guidance` 15, `test_control` 27,
   `test_gate_monitor` 15, `test_follower` 11, `test_closed_loop` 7,
@@ -365,6 +365,13 @@ Update this section in the same commit as the step that changes it.
   `asv.yaml` and its steps from `config/teleop.yaml` itself (T1 a, so
   `ros2 run` needs no parameter file); publishes zero on X, Ctrl-C, SIGTERM,
   SIGHUP. Gazebo keeps the last thruster command if a driver dies hard.
+- **`asv_msgs` (M2.4):** interface package (rosidl, depends on `std_msgs`
+  only): `BuoyColour`, `BuoyDetection(Array)`, `Landmark(Array)`,
+  `GnssHeading`, `GnssStatus` (was planned as SensorStatus; renamed, M2.4 B b).
+  Detections carry no σ (A a: Q comes from the filter config) and no true ID.
+  Every field has a `# [unit]` comment; `tests/test_msgs_documented.py` in
+  `asv_sim` checks that and the constants (needs the built workspace).
+  No package uses it yet.
 - **Gazebo sensor noise off (M2.2):** `asv.yaml` `gazebo_sensor_noise: false`
   (required key, D2 a): the generator writes no `<noise>` into the lidar, IMU
   and NavSat sensors; camera pixel noise stays. So `/asv/imu/data`,
@@ -415,5 +422,6 @@ ws/                       colcon workspace, mounted in the container at /ws
     launch/               sim.launch.py (Gazebo + bridge + static TF), task launch files
     docs/                 HOW_IT_WORKS.md (generator), milestone1_plan.md
   src/asv_core/           ROS-free maths (D13 a): angles, geodesy (from M2.1); gtests in test/
-  src/asv_msgs, asv_slam, asv_perception, asv_eval   (planned, see docs/design.md §12)
+  src/asv_msgs/           message types (from M2.4)
+  src/asv_slam, asv_perception, asv_eval   (planned, see docs/design.md §12)
 ```

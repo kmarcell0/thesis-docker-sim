@@ -379,6 +379,8 @@ decimetre level. *RTK fixed*: fully solved, centimetre level.
 
 **rosidl, interface package.** rosidl turns `.msg` files into C++ and Python
 types. Custom messages usually go in their own package (here `asv_msgs`).
+A message can also define named constants (`uint8 RED=1`): typed numbers that
+both sides agree on, cheaper and safer than strings.
 
 **Seed.** The starting number of a random generator. The same seed gives the same
 "random" noise, which makes runs repeatable.

@@ -308,8 +308,111 @@ frame; a Python check (`ros2 interface show`) lists all types.
 - ⚠ New package and dependencies (`rosidl_default_generators`,
   `std_msgs`, `geometry_msgs`).
 - Types: BuoyDetection(Array) with an UNKNOWN colour, Landmark(Array),
-  GnssHeading (`design.md` §4.3), SensorStatus. GNSS velocity uses
+  GnssHeading (`design.md` §4.3), GnssStatus. GNSS velocity uses
   geometry_msgs/TwistWithCovarianceStamped (no new type).
+
+### Brief (agreed on 2026-10-29)
+
+**Summary (in plain words)**
+Our programs will soon send each other things ROS has no ready-made type for:
+"a red buoy 6 m away, 20° to the left", "the buoy map", "the two GNSS antennas
+say the bow points 87° from north", "the GNSS is in RTK fixed mode". ROS programs
+exchange data only in agreed shapes called messages. This step defines those
+shapes, nothing else: a new package `asv_msgs` with 7 small `.msg` files, every
+field commented with unit and frame. At build time ROS turns them into C++ and
+Python code. No sensor, filter or simulation logic changes; the corruptor
+(M2.6), buoy map (M2.7), fake detector (M3.1) and filter (M3) use them later.
+
+**1. Goal:** a new interface package `asv_msgs` with the project's own message
+types, every field documented with unit and frame.
+
+**2. Decisions needed** (no D-number open; two small design choices)
+- A. Noise σ in a buoy detection? a) no, the filter takes Q from its config
+  (recommended); b) `range_std`, `bearing_std` per detection.
+- B. Name of the status message? a) keep `SensorStatus` (recommended);
+  b) rename to `GnssStatus`.
+
+Marcell (2026-10-29): **A a** (no σ), **B b** (`GnssStatus`; changes
+`design.md` §1 and §12, `master_plan.md` M2.4, this section).
+
+**3. Why:** corruptor, ground-truth map, fake detector and filter need typed
+messages; an own package is usable on the real boat without the simulator.
+Feeds: Software Architecture.
+
+**4. New ideas:** rosidl / interface package (glossary); constants in a message
+(`uint8 RED=1`).
+
+**5. What will change:** ⚠ new package `ws/src/asv_msgs/` (deps
+`rosidl_default_generators`, `rosidl_default_runtime`, `std_msgs`, all already
+in the container); 7 `.msg` files; new Python test
+`asv_sim/tests/test_msgs_documented.py`; docs (`design.md` §1/§12, this plan,
+`master_plan.md`, `CLAUDE.md`).
+
+**6. How it works (fields)**
+- `BuoyColour`: `uint8 value`; UNKNOWN=0, RED=1, GREEN=2, YELLOW=3, BLACK=4.
+- `BuoyDetection`: `range` m, `bearing` rad (base_link origin, level frame, CCW
+  from x forward, (−π, π]); `BuoyColour colour`; `object_class` BUOY=0 /
+  OTHER=1. No true ID, no σ.
+- `BuoyDetectionArray`: Header (measurement time, `base_link`), list; also
+  published when empty.
+- `Landmark`: id, name (GT), colour, model (GT), radius m, x, y m in map,
+  2×2 covariance m² row-major (zeros for GT), sightings, confirmed.
+- `LandmarkArray`: Header (`map`), list.
+- `GnssHeading`: Header (GNSS epoch), azimuth α rad clockwise from north,
+  [0, 2π), α = π/2 − ψ; `azimuth_std` rad; `baseline_fixed`.
+- `GnssStatus` (GT only): Header; position_mode NO_FIX=0 / STANDALONE=1 /
+  RTK_FLOAT=2 / RTK_FIXED=3; `sky_view_outage`, `corrections_lost`,
+  `heading_available`.
+
+**7. How we will check it:** `colcon build` of `asv_msgs`; `ros2 interface show`
+for all 7 types; new unittest (every field commented with unit/frame; Python
+import; constant values). Python tests 79 → ~81; gtests unchanged.
+
+**8. What I can't check:** nothing visual in this step.
+
+### Report (2026-10-29)
+
+**1. What changed**
+- `ws/src/asv_msgs/` (new): `package.xml` (rosidl generators, runtime,
+  `std_msgs`; member of `rosidl_interface_packages`), `CMakeLists.txt`
+  (`rosidl_generate_interfaces` for the 7 files).
+- `msg/BuoyColour.msg`, `BuoyDetection.msg`, `BuoyDetectionArray.msg`,
+  `Landmark.msg`, `LandmarkArray.msg`, `GnssHeading.msg`, `GnssStatus.msg`:
+  fields as in the brief; a file comment says what the message is for and its
+  frame; every field ends with `# [unit] meaning`.
+- `asv_sim/tests/test_msgs_documented.py` (new, 5 tests): the 7 planned types
+  exist; every field has a `# [unit]` comment; spatial types name their frame;
+  generated Python constants and defaults.
+- Docs: `design.md` §1 (GnssStatus) and §12 (message summary); `glossary.md`
+  (message constants); `master_plan.md` M2.4; `CLAUDE.md` known state, layout,
+  baseline.
+
+**2. How it was checked**
+- `colcon build --symlink-install --packages-select asv_msgs`:
+  `Finished <<< asv_msgs [8.01s]`.
+- `ros2 interface package asv_msgs`: lists all 7 types; `ros2 interface show`
+  prints the field comments.
+- `python3 -m unittest discover -s tests`: `Ran 84 tests ... OK` (was 79).
+- The unit regex rejects `float64 range` and `float64 range  # metres`, accepts
+  `float64 range  # [m] ok`.
+- `colcon test --packages-select asv_msgs asv_core asv_sim` + `colcon
+  test-result`: `128 tests, 0 errors, 0 failures` (13 + 104 gtests, unchanged;
+  asv_msgs has no tests of its own).
+
+**3. What could not be checked:** no message is published yet; the first real
+use is M2.6 (corruptor) and M2.7 (true map).
+
+**4. How to read the code:** start with `BuoyDetection.msg` (the filter's main
+input), then `Landmark.msg`. `CMakeLists.txt` is the list of files rosidl turns
+into code. No equations here; `GnssHeading.msg` states α = π/2 − ψ (§4.3).
+
+**5. Numbers for the thesis:** none (constants are labels, not parameters).
+
+**6. Check your understanding**
+1. Why is a scan with no buoys still published as an empty array?
+2. Why does `BuoyDetection` have no true buoy ID, and where does the evaluation
+   get it from?
+3. Why must the filter never subscribe to `GnssStatus`?
 
 ---
 
