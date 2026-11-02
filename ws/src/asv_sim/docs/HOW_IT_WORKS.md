@@ -277,8 +277,9 @@ is not affected by the switch: the corruptor does not touch images.
 
 A GNSS spec (`gnss`, `gnss_dual`) may hold a `position_modes` table (M2.6b):
 the corruptor's white and slow error per receiver mode (`docs/design.md`
-§4.2). The generator only checks that it is a mapping and does not use it;
-the corruptor checks its contents.
+§4.2), and a `velocity_noise` number (M2.6c, m/s per axis). The generator
+only checks their types (mapping, number) and does not use them; the corruptor
+checks their contents.
 
 Why a required key, not an optional one: if the line were missing, a default
 could silently bring Gazebo's noise back. The validator reports
@@ -638,7 +639,7 @@ tests; the 32 of `test_asvgen.py` are:
 | Geometry | rotation matrices orthonormal; yaw 90° maps x→y; `to_child` inverts `to_parent`; upside-down detection |
 | Mass | CoG and inertia of point masses; sign of the product of inertia; box inertia formula |
 | Hydrostatics | segment area at half/full immersion; segment centroid $4r/3\pi$; Archimedes balance at the solved draft; overloaded boats refused |
-| Config | the shipped config is valid; `gazebo_sensor_noise` missing or not a bool is an error; missing fields, wrong types, unknown sensor type, duplicate names and missing spec fields are reported; unknown keys only warn; a GNSS `position_modes` that is not a mapping is an error; overrides by sensor name |
+| Config | the shipped config is valid; `gazebo_sensor_noise` missing or not a bool is an error; missing fields, wrong types, unknown sensor type, duplicate names and missing spec fields are reported; unknown keys only warn; a GNSS `position_modes` that is not a mapping or a `velocity_noise` that is not a number is an error; overrides by sensor name |
 | Layout | shipped layout has no overlaps; an overlap and a box sunk into the deck are detected; antenna posts start on the hull surface; ray-box slab test; near-field results are consistent; the blind gap of a lidar at the bow equals its blind-cone radius |
 | Pipeline | SDF contains every sensor, 4 joints, 2 buoyancy plugins; mass bookkeeping; the report's whole-boat inertia includes the pods; unique topics and frames; IMU noise conversion; with the switch off, lidar, IMU and NavSat have no `<noise>` and the cameras keep theirs; with it on, all noise elements come back; upside-down lidar looks down to −52°; camera horizon row formula |
 | **Consistency with VRX** | VRX's `Surface` force law is re-implemented and applied to the *generated SDF*; at the predicted equilibrium height the total buoyancy equals the weight to 10⁻⁶ |

@@ -1,4 +1,4 @@
-# Noise profile "nominal" (M2.6a, GNSS M2.6b): the sensor errors exactly as asv.yaml
+# Noise profile "nominal" (M2.6a, GNSS M2.6b, M2.6c): the sensor errors exactly as asv.yaml
 # sensor_specs gives them. A profile holds only the seed, multipliers and
 # overrides (design.md section 4); the nominal values stay in asv.yaml.
 # Multiplier 1.0 = the asv.yaml value, 0.0 = that error switched off.
@@ -21,6 +21,8 @@ imu:                        # spec of the sensor with type imu in asv.yaml
 gnss:                       # spec of the sensor with type gnss_dual in asv.yaml
   white: 1.0                # x position_modes.<mode>.white_h, white_v
   slow: 1.0                 # x position_modes.<mode>.slow_h, slow_v
+  velocity: 1.0             # x velocity_noise (M2.6c)
+  heading: 1.0              # x heading sigma, heading_accuracy_1m / baseline (M2.6c)
   schedule:                 # receiver mode over time; from = s after the first
                             # clean fix; modes: rtk_fixed, rtk_float,
                             # standalone, outage (no fix)

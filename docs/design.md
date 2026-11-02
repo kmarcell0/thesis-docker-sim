@@ -57,8 +57,8 @@ publish-time stamps [SRC AP_DDS], so the real boat needs a small converter node
 | `/asv/lidar/points` | sensor_msgs/PointCloud2 | 10 Hz [REPO] | bridge | clean |
 | `/asv/sensors/imu/data` | sensor_msgs/Imu | 200 Hz | corruptor | realistic; raw gyro and accel, no orientation (D11, §4.1) |
 | `/asv/sensors/gnss/fix` | sensor_msgs/NavSatFix | 10 Hz | corruptor (M2.6b) | realistic; nothing in an outage (§4.2) |
-| `/asv/sensors/gnss/heading` | asv_msgs/GnssHeading | 10 Hz | corruptor | realistic |
-| `/asv/sensors/gnss/velocity` | geometry_msgs/TwistWithCovarianceStamped (ENU) | 10 Hz | corruptor | realistic (D5 C: prediction input) |
+| `/asv/sensors/gnss/heading` | asv_msgs/GnssHeading | 10 Hz | corruptor (M2.6c) | realistic; azimuth α of the bow + noise; nothing in a sky-view outage (§4.3) |
+| `/asv/sensors/gnss/velocity` | geometry_msgs/TwistWithCovarianceStamped (frame `world`, ENU, m/s) | 10 Hz | corruptor (M2.6c) | realistic (D5 C: prediction input); primary antenna velocity + noise, stamp of epoch k, sent one epoch late; nothing in a sky-view outage (§4.2) |
 | `/asv/sensors/lidar/points` | sensor_msgs/PointCloud2 | 10 Hz | corruptor | realistic (only needed for real perception, M5) |
 | `/asv/zed/left/image_raw`, `.../camera_info` (and right, depth) | sensor_msgs/Image, CameraInfo | 15 / 10 Hz [REPO] | bridge | camera |
 | `/asv/cam_wide_front/image_raw`, `.../camera_info` | sensor_msgs/Image, CameraInfo | 30 Hz [REPO] | bridge | camera |
@@ -268,13 +268,30 @@ Per-axis 1σ (decided 2026-11-02, M2.6b; h = east and north each, v = up; in
   its axes differ from the world's by distance / Earth radius (24 µm on a
   1.5 m error at 100 m from the origin). The first fix is published (no dt
   needed); a fix whose stamp is not later than the previous one is dropped.
-  `GnssStatus.corrections_lost` = standalone; `heading_available` is false
-  until M2.6c.
-- D5 C: the corruptor also publishes a noisy GNSS (Doppler) velocity in ENU
-  (geometry_msgs/TwistWithCovarianceStamped, `/asv/sensors/gnss/velocity`), from
-  ground-truth position differences plus noise. The UM982 velocity accuracy is
-  still to be looked up [DS, to check]. In a sky-view outage it stops with the
-  position.
+  `GnssStatus.corrections_lost` = standalone; `heading_available` from M2.6c
+  (§4.3).
+- **Velocity** (D5 C; M2.6c, decided 2026-11-02): the corruptor also publishes
+  a noisy GNSS (Doppler) velocity of the primary antenna,
+  `/asv/sensors/gnss/velocity` (geometry_msgs/TwistWithCovarianceStamped, frame
+  `world`, ENU, m/s).
+  - True value (Q1 a): central difference of the clean antenna fixes,
+    v̂_k = (p_{k+1} − p_{k−1}) / (t_{k+1} − t_{k−1}), so it is sent when fix
+    k+1 arrives (100 ms late), stamped t_k. Error of the difference about
+    v ω² Δt²/6 (0.2 mm/s at 1.5 m/s, 0.3 rad/s); a one-sided difference would
+    lag by Δt/2 (≈ 0.02 m/s in such a turn).
+  - Noise (Q3 a): v_k = v̂_k + σ_v·w per ENU axis, w ~ N(0, 1) per epoch,
+    σ_v = 0.03 m/s [DS UM982 product brief, "0.03 m/s RMS"; read as per axis,
+    U [EST]], the same in every mode (Doppler needs no RTK corrections).
+    Profile multiplier `gnss.velocity`.
+  - Covariance: linear diag σ_v², angular diag −1 (not measured).
+  - It is the **antenna's** velocity, so it includes ω × R·l (up to about
+    0.25 m/s at 0.3 rad/s with |l| = 0.83 m). The filter's prediction (M3.3a)
+    must account for it.
+  - Nothing in a sky-view outage, like the position. The difference uses
+    the clean fixes, which keep coming in an outage.
+  - As built: `asv_core::central_difference()`; `asv_sim::GnssCorruption`
+    computes it in an ENU frame centred on fix k (tilted from the world's by
+    d / R_E: 2.2e-5 rad, 3e-5 m/s at 1.3 m/s and 141 m from the origin).
 
 ### 4.3 Dual-antenna heading
 
@@ -289,7 +306,19 @@ Per-axis 1σ (decided 2026-11-02, M2.6b; h = east and north each, v = up; in
 - Availability is separate from the position mode: heading stays up when only
   the RTK corrections from the shore base are lost (the two antennas don't need
   the base). It drops during a sky-view outage.
-- Optional: a constant error in the configured mounting offset.
+- Optional: a constant error in the configured mounting offset (not built).
+- **As built (M2.6c, decided 2026-11-02 Q2 a, Q4 a):** ψ_true from
+  `/asv/ground_truth/odom` at the fix stamp (`asv_core::YawHistory`, 2 s,
+  linear interpolation through `wrap_angle`; GNSS stamps fall on odometry
+  stamps). Noise white only, one draw per epoch, stream `gnss.heading`;
+  profile multiplier `gnss.heading`. σ_α is computed from `asv.yaml`
+  (`heading_accuracy_1m` / |xyz_secondary − xyz|) = 1.0532 mrad.
+  `α = azimuth_from_yaw(ψ − σ_α w)`, in [0, 2π). An epoch's heading waits until
+  odometry up to its stamp has arrived; at most 50 wait, and one whose yaw has
+  left the history is dropped (counted, warned). `azimuth_std` = σ_α,
+  `baseline_fixed` = true, frame `base_link`.
+  `GnssStatus.heading_available` = a heading for this epoch (false only in a
+  sky-view outage; a single-antenna `gnss` sensor has none).
 
 ### 4.4 Lidar
 

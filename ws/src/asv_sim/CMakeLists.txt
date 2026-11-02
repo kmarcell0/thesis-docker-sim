@@ -63,7 +63,8 @@ target_link_libraries(teleop
 # Corruptor (M2.6a, IMU): the message glue is its own library (ROS messages,
 # no node), so it is unit tested; the maths is in asv_core.
 # M2.6b adds GNSS position (NavSatFix in, NavSatFix + asv_msgs/GnssStatus +
-# Vector3Stamped out).
+# Vector3Stamped out); M2.6c velocity (TwistWithCovarianceStamped) and heading
+# (asv_msgs/GnssHeading, true yaw from nav_msgs/Odometry).
 find_package(sensor_msgs REQUIRED)
 find_package(asv_msgs REQUIRED)
 add_library(asv_sim_corruptor src/imu_corruption.cpp src/gnss_corruption.cpp)
@@ -76,6 +77,7 @@ target_link_libraries(asv_sim_corruptor PUBLIC
   yaml-cpp::yaml-cpp
   ${sensor_msgs_TARGETS}
   ${geometry_msgs_TARGETS}
+  ${nav_msgs_TARGETS}
   ${asv_msgs_TARGETS}
 )
 add_executable(corruptor src/corruptor_node.cpp)

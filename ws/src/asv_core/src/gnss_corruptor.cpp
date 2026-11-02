@@ -1,9 +1,12 @@
-// GNSS position corruptor (M2.6b); see gnss_corruptor.hpp for the equations.
+// GNSS corruptor (M2.6b position, M2.6c velocity and heading); see
+// gnss_corruptor.hpp for the equations.
 #include "asv_core/gnss_corruptor.hpp"
 
 #include <cmath>
 #include <stdexcept>
 #include <utility>
+
+#include "asv_core/angles.hpp"
 
 namespace asv_core
 {
@@ -82,12 +85,21 @@ GnssCorruptor::GnssCorruptor(
 : modes_{make_axes(params.standalone, global_seed, "standalone"),
     make_axes(params.rtk_float, global_seed, "rtk_float"),
     make_axes(params.rtk_fixed, global_seed, "rtk_fixed")},
+  velocity_white_(params.velocity_white),
+  velocity_streams_{RandomStream(global_seed, "gnss.velocity_e"),
+    RandomStream(global_seed, "gnss.velocity_n"),
+    RandomStream(global_seed, "gnss.velocity_u")},
+  heading_white_(params.heading_white),
+  heading_stream_(global_seed, "gnss.heading"),
   schedule_(std::move(schedule))
 {
   for (const auto * p : {&params.standalone, &params.rtk_float, &params.rtk_fixed}) {
     if (!(p->white_h >= 0.0 && p->white_v >= 0.0)) {
       throw std::invalid_argument("GNSS white sigma must be >= 0");
     }
+  }
+  if (!(velocity_white_ >= 0.0) || (heading_white_ && !(*heading_white_ >= 0.0))) {
+    throw std::invalid_argument("GNSS velocity and heading sigma must be >= 0");
   }
 }
 
@@ -128,9 +140,92 @@ std::optional<GnssEpoch> GnssCorruptor::process(std::int64_t stamp_ns)
     out.sigma[j] = std::hypot(a.white_sigma, a.slow.sigma_ss());
   }
   out.error = error;
+
+  // Velocity and heading: white, the same in every mode (Q3 a, Q4 a).
+  Eigen::Vector3d v_noise;
+  for (std::size_t j = 0; j < 3; ++j) {
+    v_noise[static_cast<int>(j)] = velocity_white_ * velocity_streams_[j].normal();
+  }
+  out.velocity_noise = v_noise;
+  if (heading_white_) {
+    out.heading_noise = *heading_white_ * heading_stream_.normal();
+  }
+
   last_fix_mode_ = out.mode;
   last_fix_stamp_ns_ = stamp_ns;
   return out;
+}
+
+double azimuth_from_yaw(double psi)
+{
+  // wrap_angle gives (-pi, pi]; shift the negative half up by 2 pi. A value
+  // that rounds to exactly 2 pi becomes 0, so the result is in [0, 2 pi).
+  double alpha = wrap_angle(M_PI / 2.0 - psi);
+  if (alpha < 0.0) {
+    alpha += 2.0 * M_PI;
+  }
+  return alpha >= 2.0 * M_PI ? 0.0 : alpha;
+}
+
+Eigen::Vector3d central_difference(
+  const Eigen::Vector3d & p_prev, std::int64_t t_prev_ns,
+  const Eigen::Vector3d & p_next, std::int64_t t_next_ns)
+{
+  if (!(t_next_ns > t_prev_ns)) {
+    throw std::invalid_argument("central_difference: t_next must be later than t_prev");
+  }
+  return (p_next - p_prev) / (static_cast<double>(t_next_ns - t_prev_ns) * 1e-9);
+}
+
+YawHistory::YawHistory(std::int64_t keep_ns)
+: keep_ns_(keep_ns)
+{
+  if (keep_ns <= 0) {
+    throw std::invalid_argument("YawHistory: keep_ns must be > 0");
+  }
+}
+
+void YawHistory::add(std::int64_t stamp_ns, double psi)
+{
+  if (!samples_.empty() && stamp_ns <= samples_.back().first) {
+    return;
+  }
+  samples_.emplace_back(stamp_ns, psi);
+  while (samples_.front().first < stamp_ns - keep_ns_) {
+    samples_.pop_front();
+  }
+}
+
+std::optional<double> YawHistory::at(std::int64_t stamp_ns) const
+{
+  if (samples_.empty() || stamp_ns < samples_.front().first ||
+    stamp_ns > samples_.back().first)
+  {
+    return std::nullopt;
+  }
+  // First sample not earlier than the stamp; the one before brackets it.
+  std::size_t i = 0;
+  while (samples_[i].first < stamp_ns) {++i;}
+  if (samples_[i].first == stamp_ns) {
+    return samples_[i].second;
+  }
+  const auto & a = samples_[i - 1];
+  const auto & b = samples_[i];
+  const double f = static_cast<double>(stamp_ns - a.first) /
+    static_cast<double>(b.first - a.first);
+  return wrap_angle(a.second + f * wrap_angle(b.second - a.second));
+}
+
+std::optional<std::int64_t> YawHistory::newest() const
+{
+  if (samples_.empty()) {return std::nullopt;}
+  return samples_.back().first;
+}
+
+std::optional<std::int64_t> YawHistory::oldest() const
+{
+  if (samples_.empty()) {return std::nullopt;}
+  return samples_.front().first;
 }
 
 }  // namespace asv_core

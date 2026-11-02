@@ -43,6 +43,8 @@ proposes, Marcell decides, and then this table is updated.
 | σ_ss, T_c | size (steady-state standard deviation) and correlation time of a Gauss-Markov error | unit of the signal, s | proposed |
 | σ_w | per-sample (per-epoch) standard deviation of a white error; for the IMU σ_w = η/√dt | unit of the signal | proposed |
 | ε_G, β_G | GNSS position error added by the corruptor (ε_G = β_G + white part) and its slow (Gauss-Markov) part, per ENU axis (M2.6b) | m | proposed (s, e are taken by the guidance) |
+| σ_v | 1σ of the white GNSS velocity error, per ENU axis (M2.6c) | m/s | proposed |
+| σ_α | 1σ of the white GNSS azimuth error (M2.6c; 0.1° / baseline, D12 a) | rad | proposed |
 | τ | Allan averaging time (only this) | s | proposed |
 | M | number of repeated runs (seeds) per setting | | proposed |
 | n | number of values checked in NEES or NIS (degrees of freedom) | | proposed |
@@ -105,6 +107,10 @@ clockwise from north. *Yaw* ψ (what the filter uses) is measured counter-clockw
 from east. ψ = π/2 − α. *Heading* is the everyday word for either; in these docs
 "GNSS heading" means α and "heading error" means the error in ψ. (An *azimuth
 thruster* is something else: a propeller pod that can turn.)
+The corruptor (M2.6c) makes α = π/2 − ψ_true + noise and wraps it into
+[0, 2π). It drops α only in a sky-view outage: the two antennas measure their
+baseline without the base station, so losing the RTK corrections does not
+stop the heading.
 
 **Bag (rosbag2).** A recording of ROS topics to a file, which can be played back
 or read by a program. Jazzy stores it in the MCAP format by default.
@@ -127,6 +133,12 @@ or a timer fires. The executor is the loop (`rclcpp::spin`) that calls them,
 by default one at a time in one thread, so two callbacks never run at once
 and need no locking. The waypoint follower (M1.3) stores the latest odometry
 in one callback and computes the commands in a timer callback.
+
+**Central difference.** A slope taken over the points on both sides of a time:
+v_k = (p_{k+1} − p_{k−1}) / (t_{k+1} − t_{k−1}). It belongs to t_k itself. A
+one-sided slope (p_k − p_{k−1}) / Δt is the velocity half a step earlier, so it
+lags in a turn or a speed change. The corruptor (M2.6c) gets the true GNSS
+velocity this way, one epoch late.
 
 **Centroid bias.** The lidar only sees the near side of a buoy, so the centre of
 its points lies closer to the boat than the buoy's real centre, by about π·r_b/4

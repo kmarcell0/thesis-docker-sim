@@ -55,10 +55,11 @@ SPEC_OPTIONAL = {
                       'depth_height': INT, 'depth_rate': NUM},
     'imu': {'gyro_bias': NUM, 'accel_bias': NUM, 'gyro_bias_drift': NUM, 'accel_bias_drift': NUM,
             'bias_drift_time': NUM},
-    # GNSS error per receiver mode: read by the corruptor (M2.6b), which
-    # checks the contents; the generator does not use it.
-    'gnss': {'position_modes': MAP},
-    'gnss_dual': {'position_modes': MAP},
+    # GNSS error per receiver mode (M2.6b) and velocity noise (M2.6c): read
+    # by the corruptor, which checks the contents; the generator does not use
+    # them.
+    'gnss': {'position_modes': MAP, 'velocity_noise': NUM},
+    'gnss_dual': {'position_modes': MAP, 'velocity_noise': NUM},
 }
 DEPTH_KEYS = ('depth_range', 'depth_width', 'depth_height', 'depth_rate')
 SENSOR_TYPES = tuple(SPEC_REQUIRED)

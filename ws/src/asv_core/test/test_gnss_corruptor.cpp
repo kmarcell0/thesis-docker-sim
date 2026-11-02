@@ -1,4 +1,5 @@
-// Unit tests for the GNSS position corruptor (M2.6b): design.md 4.2.
+// Unit tests for the GNSS corruptor: position (M2.6b, design.md 4.2),
+// velocity and heading (M2.6c, design.md 4.2, 4.3).
 // Spreads over many seeds use 2000 runs: the sample standard deviation then
 // scatters by about 1/sqrt(2 * 2000) = 1.6 %, so 5 % is three of those.
 #include <gtest/gtest.h>
@@ -14,12 +15,15 @@
 namespace
 {
 
+using asv_core::azimuth_from_yaw;
+using asv_core::central_difference;
 using asv_core::GnssCorruptor;
 using asv_core::GnssErrorParams;
 using asv_core::GnssMode;
 using asv_core::GnssModeErrorParams;
 using asv_core::GnssSchedule;
 using asv_core::GnssScheduleEntry;
+using asv_core::YawHistory;
 using asv_core_test::mean;
 using asv_core_test::std_dev;
 
@@ -35,6 +39,8 @@ GnssErrorParams nominal()
   p.rtk_fixed = {0.005, 0.006, 0.0094, 0.0113, 60.0};
   p.rtk_float = {0.05, 0.19, 0.10, 0.38, 60.0};
   p.standalone = {0.3, 1.47, 0.5, 2.45, 300.0};
+  p.velocity_white = 0.03;                      // m/s, M2.6c Q3 a
+  p.heading_white = 0.1 * M_PI / 180.0 / 1.657;  // rad, D12 a: 0.060 deg
   return p;
 }
 
@@ -264,6 +270,147 @@ TEST(GnssCorruptor, OldStampIsDroppedWithoutStateChange)
   for (int k = 2; k < 20; ++k) {
     EXPECT_EQ(*a.process(epoch(k))->error, *b.process(epoch(k))->error);
   }
+}
+
+// ---- velocity and heading (M2.6c) -------------------------------------------
+
+TEST(AzimuthFromYaw, CompassDirectionsAndRange)
+{
+  EXPECT_NEAR(azimuth_from_yaw(0.0), M_PI / 2.0, 1e-15);        // bow east
+  EXPECT_NEAR(azimuth_from_yaw(M_PI / 2.0), 0.0, 1e-15);        // bow north
+  EXPECT_NEAR(azimuth_from_yaw(M_PI), 3.0 * M_PI / 2.0, 1e-15);  // bow west
+  EXPECT_NEAR(azimuth_from_yaw(-M_PI / 2.0), M_PI, 1e-15);       // bow south
+  // Just left of north: azimuth just below 2 pi, never 2 pi itself.
+  const double a = azimuth_from_yaw(M_PI / 2.0 + 1e-9);
+  EXPECT_NEAR(a, 2.0 * M_PI - 1e-9, 1e-12);
+  for (double psi = -20.0; psi <= 20.0; psi += 0.001) {
+    const double alpha = azimuth_from_yaw(psi);
+    ASSERT_GE(alpha, 0.0) << psi;
+    ASSERT_LT(alpha, 2.0 * M_PI) << psi;
+  }
+  // The next double above pi/2: pi/2 - psi + 2 pi rounds to exactly 2 pi,
+  // which must come out as 0.
+  EXPECT_EQ(azimuth_from_yaw(std::nextafter(M_PI / 2.0, 4.0)), 0.0);
+}
+
+// Exact for constant acceleration; on a circle much better than the one-sided
+// slope, which is the velocity half an epoch earlier.
+TEST(CentralDifference, ExactOnParabolaAndBetterOnCircle)
+{
+  const Eigen::Vector3d p0(1.0, 2.0, 0.1), v0(1.5, -0.4, 0.0), acc(0.3, 0.2, -0.05);
+  auto parabola = [&](double t) {return Eigen::Vector3d(p0 + v0 * t + 0.5 * acc * t * t);};
+  const double t = 3.0;
+  const Eigen::Vector3d v = central_difference(
+    parabola(t - 0.1), epoch(29), parabola(t + 0.1), epoch(31));
+  EXPECT_LT((v - (v0 + acc * t)).norm(), 1e-9);
+
+  // Circle: speed 1.5 m/s, turn rate 0.3 rad/s.
+  const double speed = 1.5, omega = 0.3, r = speed / omega;
+  auto circle = [&](double s) {
+      return Eigen::Vector3d(r * std::sin(omega * s), r * (1.0 - std::cos(omega * s)), 0.0);
+    };
+  const Eigen::Vector3d v_true(speed * std::cos(omega * t), speed * std::sin(omega * t), 0.0);
+  const Eigen::Vector3d central = central_difference(
+    circle(t - 0.1), epoch(29), circle(t + 0.1), epoch(31));
+  const Eigen::Vector3d one_sided = (circle(t) - circle(t - 0.1)) / 0.1;
+  const double central_err = (central - v_true).norm();
+  const double one_sided_err = (one_sided - v_true).norm();
+  // v omega^2 dt^2 / 6 = 0.225 mm/s; one-sided about v omega dt / 2 = 22.5 mm/s.
+  EXPECT_NEAR(central_err, speed * omega * omega * 0.01 / 6.0, 1e-5);
+  EXPECT_NEAR(one_sided_err, speed * omega * 0.1 / 2.0, 1e-3);
+  EXPECT_THROW(central_difference(p0, epoch(1), p0, epoch(1)), std::invalid_argument);
+}
+
+TEST(YawHistory, InterpolatesAcrossPiAndKnowsItsRange)
+{
+  YawHistory h(1'000'000'000);  // keep 1 s
+  EXPECT_FALSE(h.at(epoch(0)));
+  h.add(epoch(0), 3.1);
+  h.add(epoch(2), -3.1);  // 0.083 rad further, across +-pi
+  h.add(epoch(1), 0.0);   // not later than the newest: ignored
+  EXPECT_DOUBLE_EQ(*h.at(epoch(0)), 3.1);
+  EXPECT_DOUBLE_EQ(*h.at(epoch(2)), -3.1);
+  EXPECT_NEAR(std::abs(*h.at(epoch(1))), M_PI, 1e-12);  // the midpoint is pi, not 0
+  EXPECT_FALSE(h.at(epoch(3)));       // not known yet
+  EXPECT_FALSE(h.at(epoch(0) - 1));   // before the oldest
+  for (int k = 3; k <= 20; ++k) {h.add(epoch(k), 0.1 * k);}
+  EXPECT_EQ(*h.newest(), epoch(20));
+  EXPECT_EQ(*h.oldest(), epoch(10));  // 1 s before the newest
+  EXPECT_FALSE(h.at(epoch(9)));
+  EXPECT_THROW(YawHistory(0), std::invalid_argument);
+}
+
+// Velocity and heading noise: white, the configured spread, the same in every
+// mode with a fix.
+TEST(GnssCorruptor, VelocityAndHeadingNoiseSpreadPerMode)
+{
+  const auto p = nominal();
+  for (const auto m : kFixModes) {
+    GnssCorruptor c(p, always(m), 11);
+    std::vector<std::vector<double>> v(3);
+    std::vector<double> h;
+    for (int k = 0; k < 20000; ++k) {
+      const auto ep = c.process(epoch(k));
+      ASSERT_TRUE(ep && ep->velocity_noise && ep->heading_noise);
+      for (int j = 0; j < 3; ++j) {v[j].push_back((*ep->velocity_noise)[j]);}
+      h.push_back(*ep->heading_noise);
+    }
+    for (int j = 0; j < 3; ++j) {
+      EXPECT_NEAR(std_dev(v[j]) / p.velocity_white, 1.0, kTol) << "mode " << int(m);
+      EXPECT_LT(std::abs(mean(v[j])), 4.0 * p.velocity_white / std::sqrt(20000.0));
+    }
+    EXPECT_NEAR(std_dev(h) / *p.heading_white, 1.0, kTol) << "mode " << int(m);
+    EXPECT_LT(std::abs(mean(h)), 4.0 * *p.heading_white / std::sqrt(20000.0));
+    // White: neighbouring epochs uncorrelated.
+    const std::vector<double> a(h.begin(), h.end() - 1), b(h.begin() + 1, h.end());
+    EXPECT_LT(std::abs(correlation(a, b)), 4.0 / std::sqrt(20000.0));
+  }
+}
+
+// Sky-view outage: no velocity and no heading. Corrections lost
+// (standalone): position degrades, heading stays.
+TEST(GnssCorruptor, OutageStopsVelocityAndHeadingStandaloneKeepsHeading)
+{
+  const GnssSchedule s({{0.0, GnssMode::rtk_fixed}, {1.0, GnssMode::standalone},
+      {2.0, GnssMode::outage}});
+  GnssCorruptor c(nominal(), s, 1);
+  for (int k = 0; k < 30; ++k) {
+    const auto ep = c.process(epoch(k));
+    const bool outage = k >= 20;
+    EXPECT_EQ(ep->velocity_noise.has_value(), !outage) << k;
+    EXPECT_EQ(ep->heading_noise.has_value(), !outage) << k;
+  }
+  // Single antenna: no heading at all.
+  auto single = nominal();
+  single.heading_white.reset();
+  GnssCorruptor d(single, always(GnssMode::rtk_fixed), 1);
+  const auto ep = d.process(epoch(0));
+  EXPECT_FALSE(ep->heading_noise);
+  EXPECT_TRUE(ep->velocity_noise);
+}
+
+// Size 0 gives exactly the truth; the new streams don't change the position
+// error (own streams, noise.hpp); negative sizes throw.
+TEST(GnssCorruptor, VelocityAndHeadingSizeZeroAndOwnStreams)
+{
+  auto off = nominal();
+  off.velocity_white = 0.0;
+  off.heading_white = 0.0;
+  GnssCorruptor a(off, always(GnssMode::rtk_fixed), 5);
+  GnssCorruptor b(nominal(), always(GnssMode::rtk_fixed), 5);
+  for (int k = 0; k < 50; ++k) {
+    const auto ea = a.process(epoch(k)), eb = b.process(epoch(k));
+    EXPECT_EQ(*ea->velocity_noise, Eigen::Vector3d::Zero());
+    EXPECT_EQ(*ea->heading_noise, 0.0);
+    EXPECT_EQ(*ea->error, *eb->error);
+    EXPECT_NE(*eb->heading_noise, 0.0);
+  }
+  auto bad = nominal();
+  bad.velocity_white = -0.01;
+  EXPECT_THROW(GnssCorruptor(bad, always(GnssMode::rtk_fixed), 1), std::invalid_argument);
+  bad = nominal();
+  bad.heading_white = -0.01;
+  EXPECT_THROW(GnssCorruptor(bad, always(GnssMode::rtk_fixed), 1), std::invalid_argument);
 }
 
 }  // namespace

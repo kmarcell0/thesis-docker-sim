@@ -150,6 +150,9 @@ sensor_specs:
     horizontal_noise: 0.008       # [DS] 0.8 cm + 1 ppm (RMS)
     vertical_noise: 0.015         # [DS] 1.5 cm + 1 ppm (RMS)
     heading_accuracy_1m: 0.1      # [DS] 0.1 deg at 1 m baseline
+    velocity_noise: 0.03          # [DS] 0.03 m/s RMS (UM982 product brief); used by the
+                                  #   corruptor (M2.6c) as white 1-sigma per ENU axis
+                                  #   (decided 2026-11-02; per axis and U are [EST])
     # Position error per receiver mode, used by the corruptor (M2.6b,
     # design.md 4.2; decided 2026-11-02). Per-axis 1-sigma in m (h = east
     # and north each, v = up): white = new draw every epoch, slow =

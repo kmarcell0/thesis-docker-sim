@@ -890,6 +890,155 @@ stays up when only RTK corrections are lost.
 **Decisions needed:** none. The brief looks up the UM982 velocity accuracy
 [DS] (still "to check" in `design.md` §4.2).
 
+#### Brief (agreed on 2026-11-02)
+
+**Summary (in plain words)**
+The filter (D5 C) moves the boat with the gyro and the GNSS velocity, and
+corrects its heading with the dual-antenna heading. Gazebo gives neither in a
+usable form (its NavSat velocity is lost in the bridge; it has no dual-antenna
+heading). The `corruptor` builds both: the true antenna velocity + UM982
+velocity noise (0.03 m/s) on `/asv/sensors/gnss/velocity`, and the true yaw ψ
+turned into the receiver's azimuth α = π/2 − ψ + noise (0.060°) on
+`/asv/sensors/gnss/heading`. Both stop in a sky-view outage; the heading stays
+up when only the RTK corrections are lost. No change to Gazebo, the world or
+the filter; launch file and recording check are M2.6d.
+
+**1. Goal:** noisy antenna velocity (ENU) and azimuth α in [0, 2π), both
+following the M2.6b mode schedule; `GnssStatus.heading_available` set.
+
+**2. Decisions needed** (brief questions, no D-number)
+- Q1 true velocity: a) central difference of the clean antenna fixes,
+  (p_{k+1} − p_{k−1}) / (t_{k+1} − t_{k−1}), published one epoch late with
+  stamp t_k (rec.); b) backward difference, no delay, lags half an epoch
+  (≈ 0.02 m/s in turns); c) odometry pose ± 20 ms + lever arm.
+- Q2 true heading: a) yaw ψ from `/asv/ground_truth/odom` at the fix stamp
+  (rec.); b) azimuth of (secondary − primary) clean fix − 23.47° mounting angle
+  (real tilt error ≈ 0.08° at 5° roll).
+- Q3 velocity noise "0.03 m/s RMS" [DS UM982 product brief]: a) per axis
+  E, N, U (U [EST]), white, same in every mode except outage (rec.); b) 2D,
+  0.021 m/s per axis.
+- Q4 heading noise: a) white only, σ_α = 0.1°/1.657 m = 0.060° (D12 a) (rec.);
+  b) white + slow multipath part [EST].
+
+Marcell (2026-11-02): **Q1 a**, **Q2 a**, **Q3 a**, **Q4 a**.
+
+**3. Why:** D5 C needs the velocity as a prediction input; the heading makes ψ
+and the gyro bias observable; outage runs (D9 a) must lose both. Feeds:
+Vehicle and Sensor Models; Sensor Configuration; Noise Models.
+
+**4. New ideas:** central difference (slope over both neighbours belongs to
+t_k; a one-sided slope belongs to t_k − Δt/2); azimuth (from north, clockwise)
+vs yaw (from east, counter-clockwise): α = π/2 − ψ wrapped; heading
+availability is separate from the position mode.
+
+**5. What will change:** `asv_core`: `gnss_corruptor.hpp/.cpp` (velocity and
+heading noise, streams `gnss.velocity_{e,n,u}`, `gnss.heading`;
+`central_difference()`, `azimuth_from_yaw()`, a yaw buffer), tests.
+`asv_sim`: `gnss_corruption.hpp/.cpp`, `corruptor_node.cpp` (subscribes
+`/asv/ground_truth/odom`, two new publishers), `nominal.yaml` (`gnss.velocity`,
+`gnss.heading` multipliers), tests. ⚠ `asv.yaml`: `velocity_noise: 0.03` [DS]
+(heading σ from the existing `heading_accuracy_1m` and the antenna positions).
+⚠ generator `tools/asvgen/config.py`: accept the key. Docs: `design.md` §1,
+§4.2, §4.3; glossary (σ_v, σ_α proposed); plans; `CLAUDE.md`.
+
+**6. How it works:** v̂_k = (p_{k+1} − p_{k−1}) / (t_{k+1} − t_{k−1}) from the
+clean antenna fixes in world ENU; v_k = v̂_k + σ_v·w, published when fix k+1
+arrives, stamp t_k, frame `world`; covariance linear diag σ_v², angular −1
+(not measured). It is the antenna's velocity (includes ω × R·l, up to
+≈ 0.25 m/s at 0.3 rad/s: M3.3a must handle it). α_k = wrap_[0,2π)(π/2 −
+ψ(t_k) + σ_α·w), ψ from ground-truth odometry at t_k; `azimuth_std` = σ_α,
+`baseline_fixed` = true, frame `base_link`. Outage → neither, and
+`heading_available` = false.
+
+**7. How we will check it:** gtests: error spread = σ (5 %); α in [0, 2π) at
+the wrap points; central difference exact on a parabola, better than the
+one-sided slope on a circle; outage → none, standalone → heading; same seed;
+multiplier 0 → truth. Live: both at ≈ 10 Hz sim time, heading error spread
+≈ 1 mrad. Counts `asv_core` 51 → about 58, `asv_sim` 118 → about 123.
+
+**8. What I can't check:** whether the real UM982 errors are white and this
+size; whether "0.03 m/s RMS" is per axis, 2D or 3D.
+
+#### Report (2026-11-02)
+
+**1. What changed**
+- `asv_core/gnss_corruptor.hpp/.cpp`: `GnssCorruptor` also draws the
+  velocity noise σ_v·w per ENU axis (streams `gnss.velocity_{e,n,u}`) and the
+  azimuth noise σ_α·w (stream `gnss.heading`) for every epoch with a fix;
+  none in an outage. New `azimuth_from_yaw()`, `central_difference()`,
+  `YawHistory`. Test: 6 new tests in `test_gnss_corruptor` (17 now).
+- `asv_sim/gnss_corruption.hpp/.cpp`: `gnss_error_params()` also reads
+  `velocity_noise` and σ_α = `heading_accuracy_1m` / baseline; new class
+  `GnssCorruption` (position as before, velocity one epoch late, headings that
+  wait for the odometry yaw). Test: 5 new tests in `test_gnss_corruption` (12 now).
+- `corruptor_node.cpp`: subscribes `/asv/ground_truth/odom`; publishes
+  `/asv/sensors/gnss/velocity` and `/asv/sensors/gnss/heading`.
+- `noise_profiles/nominal.yaml`: `gnss.velocity: 1.0`, `gnss.heading: 1.0`.
+- `CMakeLists.txt`: `asv_sim_corruptor` links nav_msgs.
+- ⚠ `asv.yaml`: `unicore_um982_rtk.velocity_noise: 0.03` [DS].
+- ⚠ generator `tools/asvgen/config.py`: accepts `velocity_noise` (number);
+  `tests/test_asvgen.py` +1 test. `make_asv.py` rerun: 6 generated files, one
+  line each (the fingerprint).
+- Docs: `design.md` §1, §4.2 (velocity), §4.3 (as built); `glossary.md` (σ_v,
+  σ_α proposed; "Central difference"; azimuth in the corruptor);
+  `HOW_IT_WORKS.md` (the new key; §5.4/§14 stay for M2.6d); `CLAUDE.md`.
+
+**2. How it was checked**
+- `colcon test --packages-select asv_core asv_sim`, `colcon test-result`:
+  `Summary: 196 tests, 0 errors, 0 failures, 0 skipped` (asv_core 57 gtests,
+  asv_sim 123, + 16 CTest wrappers).
+- `python3 -m unittest discover -s tests`: `Ran 86 tests ... OK`.
+- First run: one failure, `VelocityIsTheCentralDifferenceOneEpochLate`
+  missed the brief's 1e-6 m/s by up to 1.1e-5 m/s. Cause: the velocity is
+  formed in an ENU frame centred on the antenna, 141 m from the world origin,
+  tilted by d / R_E = 2.2e-5 rad (the same effect as M2.6b's 24 µm). Tolerance
+  set to 5e-5 m/s from that geometry (0.1 % of σ_v).
+- Live: `maneuver.launch.py maneuver:=circle gui:=false` + corruptor nominal,
+  bag `ws/data/bags/m26c_check` (43.9 s), `ws/data/m26c_check.py`
+  (truth independent of the corruptor: antenna velocity from odometry
+  p + R(q)·l, central difference at ±20 ms; heading π/2 − yaw(odom)):
+  - `ros2 topic hz /asv/sensors/gnss/heading`: 10.000 Hz (sim time).
+  - 439 clean fixes; 436 velocities and 436 headings, all on clean stamps;
+    missing: heading at 0.0, 0.1, 0.2 s, velocity at 0.0, 0.1 s (most likely
+    the recorder subscribing late; 0 "dropped" warnings in the node log) and
+    the last epoch (needs the next fix).
+  - Velocity error mean / std E −0.0005 / 0.0319, N +0.0013 / 0.0279,
+    U +0.0003 / 0.0300 m/s (expected 0 / 0.03; std scatter ±3.4 % at n = 436);
+    antenna speed 0.06–1.02 m/s.
+  - Heading error mean −2.1e-6, std 1.101e-3 rad = 0.0631° (expected
+    1.053e-3, +4.5 %); azimuth range 0.002–6.275 rad (wrap exercised);
+    `azimuth_std` 1.0532e-3. Velocity covariance diag 0.0009 ×3, −1 ×3.
+  - `heading_available` true on all 439 status messages.
+
+**3. What could not be checked**
+- Whether the real UM982 velocity and heading errors are white and this
+  size, and whether "0.03 m/s RMS" is per axis.
+- Outage and standalone live: only unit tests (the nominal profile has
+  neither). M2.6d's recording check can use an outage profile.
+
+**4. How to read the code**
+- `asv_core/gnss_corruptor.hpp` header comment: v = v_true + σ_v w,
+  α = wrap(π/2 − ψ + σ_α w). `GnssCorruptor::process()` draws the noise;
+  `azimuth_from_yaw()` is α = π/2 − ψ wrapped; `central_difference()` is v̂_k.
+- `asv_sim::GnssCorruption::on_fix()`: velocity of the previous epoch;
+  `ready_headings()`: α = `azimuth_from_yaw(ψ − noise)` once the yaw is known.
+
+**5. Numbers for the thesis**
+- σ_v = 0.03 m/s per ENU axis [DS UM982 product brief; per axis and U [EST]].
+- σ_α = 0.1° [DS] / 1.657 m [REPO] = 0.0603° = 1.0532 mrad (D12 a).
+- Live: velocity error std 0.0319 / 0.0279 / 0.0300 m/s, heading error std
+  1.101 mrad [MEASURED, `m26c_check`].
+- Truth error of the central difference: v ω² Δt²/6 ≈ 0.2 mm/s at 1.5 m/s,
+  0.3 rad/s (vs ≈ 22 mm/s one-sided) [REPO, test].
+
+**6. Check your understanding**
+1. Why does the velocity come out one epoch late, and why is that harmless
+   for slam_replay?
+2. Why does the heading keep coming when the RTK corrections are lost, but
+   not in a sky-view outage?
+3. The boat turns at 0.3 rad/s. Why does the GNSS velocity then differ from
+   the velocity of base_link, and by roughly how much?
+
 ### M2.6d Corruptor node and recording check
 **Goal:** one node publishes all of the above live from the clean topics.
 **Done when:** on a recording, corrupted − clean has the configured mean and

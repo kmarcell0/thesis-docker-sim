@@ -1,13 +1,18 @@
 // corruptor: turns the clean sensor topics into realistic ones (D1 a,
 // design.md section 4). Only I/O; the maths is asv_core::ImuCorruptor and
 // asv_core::GnssCorruptor, the message glue asv_sim::corrupt_imu()
-// (imu_corruption.hpp) and asv_sim::corrupt_gnss() (gnss_corruption.hpp).
-// M2.6a IMU, M2.6b GNSS position; velocity and heading follow in M2.6c.
+// (imu_corruption.hpp) and asv_sim::GnssCorruption (gnss_corruption.hpp).
+// M2.6a IMU, M2.6b GNSS position, M2.6c GNSS velocity and heading.
 //   in:  /asv/imu/data                  clean IMU from Gazebo (M2.2)
 //        /asv/gnss/fix                  clean primary antenna fix (M2.2)
+//        /asv/ground_truth/odom         true yaw, for the heading (M2.6c)
 //   out: /asv/sensors/imu/data          noisy gyro and accel, no orientation (D11)
 //        /asv/sensors/gnss/fix          fix with the error of the current mode;
 //                                       nothing in an outage
+//        /asv/sensors/gnss/velocity     antenna velocity (ENU) + noise, one
+//                                       epoch late; nothing in an outage
+//        /asv/sensors/gnss/heading      azimuth of the bow + noise; nothing in
+//                                       an outage
 //        /asv/ground_truth/imu_bias     the true IMU bias, for the evaluation
 //        /asv/ground_truth/gnss_status  the true receiver mode, every epoch
 //        /asv/ground_truth/gnss_error   the true slow GNSS error (ENU, m)
@@ -16,9 +21,11 @@
 //
 // asv.yaml and the profile are read from the package share directory, like
 // the teleop node (T1 a), so ros2 run needs no parameter file.
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "rclcpp/rclcpp.hpp"
@@ -58,10 +65,13 @@ public:
     for (const auto & e : schedule.entries()) {
       modes += " " + asv_core::gnss_mode_name(e.mode) + "@" + std::to_string(e.from) + "s";
     }
-    gnss_ = std::make_unique<asv_core::GnssCorruptor>(g, std::move(schedule), seed);
+    gnss_ = std::make_unique<asv_sim::GnssCorruption>(g, std::move(schedule), seed);
     RCLCPP_INFO(
-      get_logger(), "GNSS rtk_fixed white %.4g, slow %.4g m; schedule:%s",
-      g.rtk_fixed.white_h, g.rtk_fixed.slow_h, modes.c_str());
+      get_logger(),
+      "GNSS rtk_fixed white %.4g, slow %.4g m; velocity %.4g m/s; heading %.4g rad; "
+      "schedule:%s",
+      g.rtk_fixed.white_h, g.rtk_fixed.slow_h, g.velocity_white,
+      g.heading_white.value_or(-1.0), modes.c_str());
 
     const rclcpp::QoS qos(50);
     imu_pub_ = create_publisher<sensor_msgs::msg::Imu>("/asv/sensors/imu/data", qos);
@@ -75,9 +85,16 @@ public:
       create_publisher<asv_msgs::msg::GnssStatus>("/asv/ground_truth/gnss_status", qos);
     gnss_error_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>(
       "/asv/ground_truth/gnss_error", qos);
+    velocity_pub_ = create_publisher<geometry_msgs::msg::TwistWithCovarianceStamped>(
+      "/asv/sensors/gnss/velocity", qos);
+    heading_pub_ =
+      create_publisher<asv_msgs::msg::GnssHeading>("/asv/sensors/gnss/heading", qos);
     fix_sub_ = create_subscription<sensor_msgs::msg::NavSatFix>(
       "/asv/gnss/fix", qos,
       [this](const sensor_msgs::msg::NavSatFix & msg) {on_fix(msg);});
+    odom_sub_ = create_subscription<nav_msgs::msg::Odometry>(
+      "/asv/ground_truth/odom", qos,
+      [this](const nav_msgs::msg::Odometry & msg) {publish_headings(gnss_->on_odom(msg));});
   }
 
 private:
@@ -100,28 +117,50 @@ private:
 
   void on_fix(const sensor_msgs::msg::NavSatFix & clean)
   {
-    const auto out = asv_sim::corrupt_gnss(clean, *gnss_);
-    if (!out) {
+    const auto out = gnss_->on_fix(clean);
+    if (!out.position) {
       RCLCPP_WARN_THROTTLE(
         get_logger(), *get_clock(), 5000, "GNSS fix with an old stamp dropped");
       return;
     }
-    status_pub_->publish(out->status);
-    if (out->fix) {
-      fix_pub_->publish(*out->fix);
-      gnss_error_pub_->publish(*out->slow_error);
+    const auto & pos = *out.position;
+    status_pub_->publish(pos.status);
+    if (pos.fix) {
+      fix_pub_->publish(*pos.fix);
+      gnss_error_pub_->publish(*pos.slow_error);
+    }
+    if (out.velocity) {
+      velocity_pub_->publish(*out.velocity);
+    }
+    publish_headings(out.headings);
+  }
+
+  void publish_headings(const std::vector<asv_msgs::msg::GnssHeading> & headings)
+  {
+    for (const auto & h : headings) {
+      heading_pub_->publish(h);
+    }
+    if (gnss_->dropped_headings() > dropped_reported_) {
+      dropped_reported_ = gnss_->dropped_headings();
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 5000,
+        "%zu GNSS headings dropped: no ground-truth yaw for their stamp", dropped_reported_);
     }
   }
 
   std::unique_ptr<asv_core::ImuCorruptor> imu_;
-  std::unique_ptr<asv_core::GnssCorruptor> gnss_;
+  std::unique_ptr<asv_sim::GnssCorruption> gnss_;
+  std::size_t dropped_reported_ = 0;
   std::uint64_t received_ = 0;
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_, bias_pub_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
   rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr fix_pub_;
   rclcpp::Publisher<asv_msgs::msg::GnssStatus>::SharedPtr status_pub_;
   rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr gnss_error_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::TwistWithCovarianceStamped>::SharedPtr velocity_pub_;
+  rclcpp::Publisher<asv_msgs::msg::GnssHeading>::SharedPtr heading_pub_;
   rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr fix_sub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
 };
 
 int main(int argc, char ** argv)

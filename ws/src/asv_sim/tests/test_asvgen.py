@@ -132,6 +132,13 @@ class Config(unittest.TestCase):
         cfg['sensor_specs']['unicore_um982_rtk']['position_modes'] = 0.008
         self.assertIn('position_modes: expected mapping', self.errors_of(cfg))
 
+    def test_gnss_velocity_noise_must_be_a_number(self):
+        """M2.6c: the corruptor's velocity noise is accepted (no warning in the
+        shipped config) but must be a number."""
+        cfg = copy.deepcopy(self.base)
+        cfg['sensor_specs']['unicore_um982_rtk']['velocity_noise'] = 'fast'
+        self.assertIn('velocity_noise: expected number', self.errors_of(cfg))
+
     def test_unknown_key_is_only_a_warning(self):
         cfg = copy.deepcopy(self.base)
         cfg['battery']['colour'] = 'blue'
