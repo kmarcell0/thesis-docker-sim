@@ -1048,6 +1048,162 @@ spread per sensor; `ros2 node info` shows the expected inputs and outputs.
 - Update `HOW_IT_WORKS.md` §5.4 and §14 (heading now emulated by the corruptor,
   `design.md` §4.3). Lidar range noise is left for M5 (optional).
 
+#### Brief (agreed on 2026-11-02)
+
+**Summary (in plain words)**
+The corruptor already makes all realistic sensor data (IMU, GNSS position,
+velocity, heading), but it is started by hand and was only checked live with
+RTK fixed all run. This step starts it with every simulation launch, records
+one run in which the GNSS goes fixed → float → standalone → outage → fixed,
+and adds a tool that compares each noisy topic with the clean one and checks
+that the errors have the size `asv.yaml` says (e.g. gyro 1.05e-3 rad/s, GNSS
+5 mm in RTK fixed, 0.3 m in standalone). It also fixes two stale lines in
+`HOW_IT_WORKS.md` about the heading. No change to the noise maths, Gazebo, the
+world or the filter.
+
+**1. Goal:** the corruptor starts with the simulation; one recording shows
+that every sensor's error has the configured mean and spread, in every GNSS
+mode.
+
+**2. Decisions needed** (brief questions, no D-number)
+- Q1 where the node starts: a) in `sim.launch.py`, on by default (rec.);
+  b) in `sim.launch.py`, off by default; c) separate launch file.
+- Q2 the check tool: a) committed with tests (rec.); b) throw-away script.
+- Q3 live check of modes: a) new test profile `mode_check.yaml` (rec.);
+  b) nominal only.
+
+Marcell (2026-11-02): **Q1 a**, **Q2 a**, **Q3 a**.
+
+**3. Why:** the live filter (M4.1) needs `/asv/sensors/...` in every run; the
+mode switches and outages had only unit tests. Feeds: Vehicle and Sensor
+Models; Ground Truth and Data Recording.
+
+**4. New ideas:** launch argument (`name:=value` on `ros2 launch`); standard
+error (mean scatters by σ/√n, std by σ/√(2(n−1))); independent truth (the
+check computes σ and the truth itself, never from the corruptor's own fields).
+
+**5. What will change:** `launch/sim.launch.py` (args `corruptor`, default
+true, and `noise_profile`, default nominal; the node);
+`config/noise_profiles/mode_check.yaml` (new: fixed 0 s → float 20 s →
+standalone 40 s → outage 60 s → fixed 70 s, seed 1); `tools/check_corruptor.py`
+and `tests/test_check_corruptor.py` (new); docs: `HOW_IT_WORKS.md` §5.4, §14,
+`design.md` §1/§4, `corruptor_node.cpp` header, glossary, `CLAUDE.md`, plans.
+
+**6. How it works:** residuals per sensor, everything known removed:
+- IMU (4 ms steps): e = ω̃ − ω − b̂ (accel the same); σ = η/√Δt: gyro
+  1.049e-3 rad/s, accel 1.706e-2 m/s².
+- GNSS position, per mode and ENU axis: e = ENU(fix̃) − ENU(fix) − β_G;
+  σ_w h/v fixed 5/9.4 mm, float 0.05/0.10 m, standalone 0.3/0.5 m.
+- Velocity: ṽ − v_ant (odom p + R(q)·l, central difference ±20 ms); σ_v =
+  0.03 m/s.
+- Heading: wrap(α̃ − (π/2 − ψ_odom)); σ_α = 1.053 mrad.
+- Pass: |mean| ≤ 3σ/√n and |s/σ − 1| ≤ 3/√(2(n−1)). Counts: one output per
+  clean stamp (except the first); nothing in the outage; status = schedule.
+
+**7. How we will check it:** build; `colcon test asv_core asv_sim` (196
+unchanged); Python unittest (86 + new). Headless default launch: `ros2 node
+info /corruptor` (3 in, 7 out), `noise_profile` = nominal, real-time factor.
+`maneuver.launch.py maneuver:=circle gui:=false noise_profile:=mode_check`,
+about 90 s sim time recorded to `ws/data/bags/m26d_check`, then
+`check_corruptor.py`.
+
+**8. What I can't check:** the spread of the slow GNSS error and of the IMU
+turn-on bias (one draw per run or mode; only the unit tests cover it);
+whether the real sensors behave like this.
+
+#### Report (2026-11-02)
+
+**1. What changed**
+- `asv_sim/launch/sim.launch.py`: starts the corruptor; launch arguments
+  `corruptor` (default true) and `noise_profile` (default nominal).
+- `asv_sim/config/noise_profiles/mode_check.yaml` (new): test profile, nominal
+  sizes, GNSS fixed 0 s → float 20 s → standalone 40 s → outage 60 s →
+  fixed 70 s, seed 1.
+- `asv_sim/tools/check_corruptor.py` (new): residuals per sensor and GNSS
+  mode against σ from `asv.yaml` × profile; message counts; mode schedule;
+  exit 1 on any failure.
+- `asv_sim/tests/test_check_corruptor.py` (new, 21 tests).
+- `asv_sim/src/corruptor_node.cpp`: header comment only (how it is started).
+- Docs: `HOW_IT_WORKS.md` §5.4 and §14 (heading emulated by the corruptor);
+  `design.md` §4 (launch, recording check); glossary (independent truth,
+  launch argument, standard error); `CLAUDE.md` (Known state, baseline,
+  layout, and the stop command now also kills `static_transform_publisher`
+  and our nodes, see 2).
+
+**2. How it was checked**
+- `colcon build --symlink-install --packages-up-to asv_sim`: 3 packages
+  finished.
+- `colcon test --packages-select asv_core asv_sim`, `colcon test-result`:
+  `Summary: 196 tests, 0 errors, 0 failures, 0 skipped` (no C++ change).
+- `python3 -m unittest discover -s tests`: `Ran 107 tests ... OK` (86 + 21).
+- Default headless launch: `ros2 node info /corruptor` subscribes
+  `/asv/gnss/fix`, `/asv/ground_truth/odom`, `/asv/imu/data` (+ `/clock`),
+  publishes the 7 topics (`gnss_error`, `gnss_status`, `imu_bias`,
+  `sensors/gnss/{fix,heading,velocity}`, `sensors/imu/data`);
+  `noise_profile` = nominal, `use_sim_time` = True.
+- Real-time factor (sim/wall over about 30 s wall): 0.857 with the
+  corruptor, 0.872 with `corruptor:=false`. One measurement each, so the
+  difference is not shown to be real.
+- Surprise on the way: the old stop command left the
+  `static_transform_publisher` nodes running (27 after three launches); with
+  them the next launch's bridge passed no data (`/clock` empty, Gazebo itself
+  running). Fixed by killing them too; the stop command in `CLAUDE.md` now
+  does that.
+- `maneuver.launch.py maneuver:=circle gui:=false noise_profile:=mode_check`
+  (`ros2 param get /corruptor noise_profile`: mode_check, so the argument
+  reaches the included file), bag `ws/data/bags/m26d_check` (102.7 s,
+  28 MiB), `check_corruptor.py --profile mode_check`: `ALL PASS`, exit 0.
+  - Counts: IMU 0 missing / 0 extra (corrupted and bias); GNSS status,
+    fix, gnss_error, velocity, heading 0 / 0; `heading_available` agrees.
+    1023 statuses, 923 fixes: 100 outage epochs = 10 s.
+  - Switches: rtk_fixed 0.5, rtk_float 20.1, standalone 40.1, outage 60.1,
+    rtk_fixed 70.1 s; first clean fix at 0.1 s: schedule PASS.
+  - Residual std / expected (n): gyro 0.998 / 0.998 / 1.004, accel
+    0.999 / 0.987 / 0.990 (15337 each, 4 ms steps; expected 1.0486e-3 rad/s,
+    1.7060e-2 m/s²); GNSS rtk_fixed E/N/U 1.038 / 1.027 / 1.001 (522),
+    rtk_float 0.981 / 0.919 / 1.032 (200), standalone 0.928 / 0.992 / 1.014
+    (200); velocity 0.994 / 0.996 / 1.025 (923); heading 1.023 (923). All
+    means inside 3σ/√n.
+
+**3. What could not be checked**
+- The spread of the slow GNSS error and of the IMU turn-on bias: one draw
+  per run or mode (unit tests M2.5, M2.6b only).
+- The tool runs 38 mean/std tests on a full recording: even with a correct
+  corruptor, about 1 run in 10 is expected to fail one of them by chance
+  (each about 1 in 370). A single near-miss FAIL means "run again with
+  another seed", not a bug.
+- Whether the real sensors behave like this.
+
+**4. How to read the code**
+- Start at the docstring of `tools/check_corruptor.py` (the four residual
+  equations and the pass rule), then `main()` top to bottom.
+- `expected_sigmas()` = Python twin of `imu_error_params()` /
+  `gnss_error_params()`; `residual_stats()` = pass rule;
+  `imu_residuals()` e = ω̃ − ω − b̂; `gnss_residuals()` e = ENU(fix̃) − β_G;
+  `velocity_residuals()` e = ṽ − v_ant; `heading_residuals()`
+  e = wrap(α̃ − (π/2 − ψ)); `schedule_matches()` the mode order and spacing.
+- Launch: section 4 of `_launch_setup()` in `sim.launch.py`.
+
+**5. Numbers for the thesis**
+- Per 4 ms IMU sample: gyro 1.0486e-3 rad/s, accel 1.7060e-2 m/s² [REPO,
+  η/√Δt]; measured 1.0462–1.0531e-3 rad/s, 1.6830–1.7049e-2 m/s² [MEASURED,
+  `m26d_check`].
+- GNSS white σ per axis, measured / configured: fixed 5.19 / 5.13 / 9.41 mm
+  vs 5 / 5 / 9.4 mm; float 0.049 / 0.046 / 0.103 m vs 0.05 / 0.05 / 0.10 m;
+  standalone 0.279 / 0.297 / 0.507 m vs 0.3 / 0.3 / 0.5 m [MEASURED vs REPO
+  `asv.yaml`].
+- Velocity 0.0298 / 0.0299 / 0.0308 m/s vs 0.03; heading 1.078 mrad vs
+  1.0532 mrad [MEASURED vs REPO].
+- Headless RTF 0.857 with the corruptor [MEASURED, one 30 s window].
+
+**6. Check your understanding**
+1. Why does the tool subtract `/asv/ground_truth/gnss_error` before it
+   checks the GNSS spread, and what would the std of the raw error be in
+   standalone mode without that?
+2. In rtk_float the N std came out 8 % low and still passed. Would 8 % low
+   pass for the IMU gyro? Why is the allowed band different?
+3. Why must the expected σ not be read from the fix's covariance field?
+
 ---
 
 ## M2.7 True buoy map

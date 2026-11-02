@@ -1,11 +1,16 @@
-"""Launch Gazebo Harmonic sim with ros_gz_bridge and static TF publishers.
+"""Launch Gazebo Harmonic sim with ros_gz_bridge, static TF publishers and
+the corruptor (realistic sensor data under /asv/sensors/..., M2.6d).
 
 Usage (from host):
   docker compose exec -T sim bash -ic \
       "ros2 launch asv_sim sim.launch.py gui:=false"
 
 Launch arguments:
-  gui  (default 'true')  – set to 'false' for headless (server-only) mode
+  gui            (default 'true')     – 'false' for headless (server-only) mode
+  corruptor      (default 'true')     – 'false' to leave the corruptor out
+  noise_profile  (default 'nominal')  – config/noise_profiles/<name>.yaml
+task1.launch.py and maneuver.launch.py include this file, so the same
+arguments work there (e.g. noise_profile:=mode_check).
 """
 
 import os
@@ -96,6 +101,20 @@ def _launch_setup(context, *args, **kwargs):
             )
         )
 
+    # ── 4. Corruptor: clean sensor topics -> /asv/sensors/... (D1 a, D3 b) ──
+    # On by default (M2.6d Q1 a), so every run has the realistic topics the
+    # filter reads. It reads asv.yaml and the profile itself (corruptor_node.cpp).
+    if LaunchConfiguration('corruptor').perform(context).lower() not in ('false', '0', 'no'):
+        actions.append(
+            Node(
+                package='asv_sim',
+                executable='corruptor',
+                name='corruptor',
+                parameters=[{'noise_profile': LaunchConfiguration('noise_profile')}],
+                output='screen',
+            )
+        )
+
     return actions
 
 
@@ -105,6 +124,16 @@ def generate_launch_description():
             'gui',
             default_value='true',
             description='Set to "false" for headless (server-only) Gazebo',
+        ),
+        DeclareLaunchArgument(
+            'corruptor',
+            default_value='true',
+            description='Set to "false" to run without the corruptor (no /asv/sensors/...)',
+        ),
+        DeclareLaunchArgument(
+            'noise_profile',
+            default_value='nominal',
+            description='Corruptor noise profile: config/noise_profiles/<name>.yaml',
         ),
         OpaqueFunction(function=_launch_setup),
     ])

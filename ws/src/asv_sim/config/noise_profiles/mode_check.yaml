@@ -1,0 +1,31 @@
+# Noise profile "mode_check" (M2.6d): a TEST profile, not an experiment. The
+# error sizes are the nominal ones (all multipliers 1, as nominal.yaml); only
+# the GNSS schedule differs: it goes through every receiver mode once, so one
+# recording checks the mode switches, an outage and the recovery live
+# (tools/check_corruptor.py). Run it with
+#   ros2 launch asv_sim maneuver.launch.py maneuver:=circle gui:=false noise_profile:=mode_check
+# Keys as in nominal.yaml (all required except the overrides).
+
+seed: 1
+
+imu:
+  gyro:
+    white: 1.0
+    turn_on: 1.0
+    drift: 1.0
+  accel:
+    white: 1.0
+    turn_on: 1.0
+    drift: 1.0
+
+gnss:
+  white: 1.0
+  slow: 1.0
+  velocity: 1.0
+  heading: 1.0
+  schedule:                 # from = s after the first clean fix
+    - {from: 0, mode: rtk_fixed}
+    - {from: 20, mode: rtk_float}
+    - {from: 40, mode: standalone}
+    - {from: 60, mode: outage}
+    - {from: 70, mode: rtk_fixed}

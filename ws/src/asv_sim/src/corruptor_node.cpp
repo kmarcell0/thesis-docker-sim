@@ -16,7 +16,9 @@
 //        /asv/ground_truth/imu_bias     the true IMU bias, for the evaluation
 //        /asv/ground_truth/gnss_status  the true receiver mode, every epoch
 //        /asv/ground_truth/gnss_error   the true slow GNSS error (ENU, m)
-// Run: ros2 run asv_sim corruptor --ros-args -p use_sim_time:=true
+// Started by sim.launch.py (M2.6d; launch arguments corruptor:=false,
+// noise_profile:=<name>). Alone:
+//      ros2 run asv_sim corruptor --ros-args -p use_sim_time:=true
 //        [-p noise_profile:=<name>]   (config/noise_profiles/<name>.yaml)
 //
 // asv.yaml and the profile are read from the package share directory, like

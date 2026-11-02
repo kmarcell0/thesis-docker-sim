@@ -163,6 +163,19 @@ slam_replay. Nominal values come from `asv.yaml` `sensor_specs` (D2 a keeps them
 there). A noise profile (`asv_sim/config/noise_profiles/<name>.yaml`) only holds
 multipliers, schedules, overrides and the seed.
 
+- **Started by** `sim.launch.py` (M2.6d, decided 2026-11-02 Q1 a), so also by
+  `task1.launch.py` and `maneuver.launch.py`, which include it. Launch
+  arguments: `corruptor:=true|false` (default true) and
+  `noise_profile:=<name>` (default `nominal`). `mode_check.yaml` is a test
+  profile (nominal sizes; GNSS fixed → float → standalone → outage → fixed at
+  0, 20, 40, 60, 70 s).
+- **Recording check:** `asv_sim/tools/check_corruptor.py <bag> --profile
+  <name>` takes the known parts away (clean value, true bias, true slow GNSS
+  error, truth from odometry) and checks that what is left has mean 0 and the
+  configured σ within three standard errors, per sensor and GNSS mode, plus
+  the message counts and the mode schedule. The σ come from `asv.yaml` ×
+  profile, not from the corruptor's covariance fields.
+
 ### 4.1 IMU
 
 - **White noise** per sample: σ = η / √dt, with η the noise density and dt from
@@ -206,8 +219,9 @@ multipliers, schedules, overrides and the seed.
   error model on each of the 3 axes of gyro and accelerometer, 18 streams
   `imu.<gyro|accel>_<x|y|z>.<white|turn_on|drift>`); `asv_sim/imu_corruption.hpp`
   (parameters = `asv.yaml` value × profile multiplier; message in → message
-  out); node `corruptor` (`ros2 run asv_sim corruptor --ros-args -p
-  use_sim_time:=true [-p noise_profile:=nominal]`). Output: same header as the
+  out); node `corruptor` (started by `sim.launch.py` since M2.6d; alone:
+  `ros2 run asv_sim corruptor --ros-args -p use_sim_time:=true
+  [-p noise_profile:=nominal]`). Output: same header as the
   clean message; quaternion all zero and `orientation_covariance[0] = −1`; the
   other covariances all zero ("unknown": the filter takes its noise from its
   own config). True bias on `/asv/ground_truth/imu_bias`. The first message

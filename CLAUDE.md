@@ -188,7 +188,7 @@ raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M2.6c): 86 Python tests, run with `unittest`; `colcon test`
+  Current baseline (M2.6d): 107 Python tests, run with `unittest`; `colcon test`
   for `asv_core` runs 57 gtests (`test_angles` 6, `test_geodesy` 7,
   `test_noise` 19, about 20 s, `test_imu_corruptor` 8,
   `test_gnss_corruptor` 17) and for
@@ -281,7 +281,7 @@ Simulation without a window (you cannot see the GUI), in the background:
 ```
 docker compose exec -d sim bash -ic "ros2 launch asv_sim sim.launch.py gui:=false > /tmp/sim.log 2>&1"
 docker compose exec -T sim bash -ic "timeout 10 ros2 topic hz /asv/ground_truth/odom"
-docker compose exec -T sim bash -ic "pkill -f 'ros2 launch'; pkill -f 'gz sim'; pkill -f parameter_bridge"   # stop
+docker compose exec -T sim bash -ic "pkill -f 'ros2 launch'; pkill -f 'gz sim'; pkill -f parameter_bridge; pkill -f static_transform_publisher; pkill -f 'lib/asv_sim/'"   # stop
 ```
 Use `timeout` for anything that waits for messages, so commands never hang.
 
@@ -377,8 +377,9 @@ Update this section in the same commit as the step that changes it.
   (test 1) and 40 h (tests 2, 3) records, tolerance 5 % (worst over 10 seeds
   2.08 %). First user: the IMU corruptor (M2.6a).
 - **Corruptor, IMU (M2.6a):** node `corruptor` (`src/corruptor_node.cpp`, I/O
-  only; `ros2 run asv_sim corruptor --ros-args -p use_sim_time:=true
-  [-p noise_profile:=nominal]`; not in any launch file yet, M2.6d). Reads
+  only; started by `sim.launch.py` since M2.6d, see below; alone
+  `ros2 run asv_sim corruptor --ros-args -p use_sim_time:=true
+  [-p noise_profile:=nominal]`). Reads
   `/asv/imu/data`, publishes `/asv/sensors/imu/data` (gyro + accel with white,
   turn-on and Gauss-Markov errors, same header, quaternion all zero,
   `orientation_covariance[0] = −1`, other covariances 0 = unknown) and the true
@@ -423,6 +424,20 @@ Update this section in the same commit as the step that changes it.
   `gnss.velocity`, `gnss.heading` (multipliers). Live check (bag
   `ws/data/bags/m26c_check`, circle manoeuvre): velocity error std
   0.032/0.028/0.030 m/s, heading 1.10 mrad.
+- **Corruptor in the launch, recording check (M2.6d):** `sim.launch.py`
+  (so also task1 and maneuver) starts the corruptor; launch arguments
+  `corruptor:=true|false` (default true), `noise_profile:=<name>` (default
+  `nominal`; a command-line value reaches the included `sim.launch.py`).
+  Test profile `config/noise_profiles/mode_check.yaml` (nominal sizes; fixed
+  → float 20 s → standalone 40 s → outage 60 s → fixed 70 s).
+  `tools/check_corruptor.py <bag> --profile <name>`: residuals (clean, true
+  bias, true slow GNSS error and odometry truth taken away) against σ from
+  `asv.yaml` × profile, within 3 standard errors; counts and schedule; exit 1
+  on a failure. Bag `ws/data/bags/m26d_check` (circle, mode_check, 102.7 s):
+  ALL PASS. Headless RTF 0.857 with the corruptor, 0.872 without (one 30 s
+  measurement each). The stop command (Running commands) now also kills the
+  static TF publishers and our nodes: leftovers piled up in M2.6d and a
+  later bridge passed no data.
 - **`asv_msgs` (M2.4):** interface package (rosidl, depends on `std_msgs`
   only): `BuoyColour`, `BuoyDetection(Array)`, `Landmark(Array)`,
   `GnssHeading`, `GnssStatus` (was planned as SensorStatus; renamed, M2.4 B b);
@@ -475,9 +490,9 @@ ws/                       colcon workspace, mounted in the container at /ws
     include/asv_sim/      ROS-free C++ (mix(), Route, LOS, control, gates, Follower, Maneuver, teleop keys) (from M1.2); imu_corruption.hpp, gnss_corruption.hpp (message glue, M2.6a/b/c)
     src/                  C++ library sources (mix, guidance, control, gate monitor, follower, maneuver, teleop, imu_corruption, gnss_corruption); nodes waypoint_follower, maneuver_player, teleop, corruptor
     test/                 gtests for the C++ code                       (from M1.2)
-    tools/                Python tools: make_asv.py (generator), studies, analysis
+    tools/                Python tools: make_asv.py (generator), studies, analysis, check_corruptor.py (M2.6d)
     tests/                Python tests of the generator and tools
-    launch/               sim.launch.py (Gazebo + bridge + static TF), task launch files
+    launch/               sim.launch.py (Gazebo + bridge + static TF + corruptor), task launch files
     docs/                 HOW_IT_WORKS.md (generator), milestone1_plan.md
   src/asv_core/           ROS-free maths (D13 a): angles, geodesy (from M2.1), noise (M2.5), IMU corruptor (M2.6a), GNSS corruptor (M2.6b, M2.6c); gtests in test/
   src/asv_msgs/           message types (from M2.4)

@@ -298,6 +298,12 @@ known only in simulation. Used to measure the filter's error.
 so that the total distance is smallest. Used to match estimated buoys to true
 buoys.
 
+**Independent truth (in a check).** A check compares an output with a truth
+and an expected size that it works out itself, from the clean data, ground
+truth and the configuration, and not from numbers the checked program reports
+about itself (such as its covariance fields). Otherwise the check would only
+show that the program agrees with itself (M2.6d `check_corruptor.py`).
+
 **Innovation.** The difference between what a sensor measured and what the
 filter predicted it would measure. *S* is its expected covariance.
 
@@ -315,6 +321,11 @@ and positive despite rounding errors.
 nodes and Gazebo with one command and gives them their parameters. An
 *OpaqueFunction* runs plain Python while the launch starts, e.g. to read
 `asv.yaml` and compute values before a node starts.
+
+**Launch argument.** A `name:=value` option on `ros2 launch`, e.g.
+`noise_profile:=mode_check`. It changes one setting for this run without
+editing a file. An argument given on the command line also reaches the launch
+files included by the one started (`maneuver.launch.py` → `sim.launch.py`).
 
 **Latched topic.** A topic whose last message is kept and delivered to
 subscribers that join later, but only if the subscriber also asks for it (QoS
@@ -455,6 +466,13 @@ building the map at the same time. [slam-problem-notes]
 (left back, right forward turns left), used when the pods alone turn too slowly.
 From M1.2f it is also used for small errors (K_s): differential thrust turns
 the boat without the sideways push of the aft pods (10.16 b).
+
+**Standard error.** How much a value computed from n random samples scatters
+from one recording to the next. The sample mean of noise with spread σ
+scatters by σ/√n; the sample standard deviation s by about σ/√(2(n−1)). A
+measured value is said to "match" the configured one when it is within three
+standard errors (about a 1 in 370 chance of failing by bad luck, for one
+value).
 
 **Static / floating model.** In Gazebo a *static* model never moves. Our buoys
 are currently *floating*: they bob on the waves and can be pushed. Neither is a

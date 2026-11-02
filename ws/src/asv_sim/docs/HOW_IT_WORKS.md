@@ -261,8 +261,10 @@ defines the heading. The heading is deliberately *not* derived from the two
 simulated fixes. Gazebo's noise is independent per antenna, so the heading
 error would be $\sqrt2\,\sigma_h/B$ (0.86° for B = 0.75 m), while the real
 receiver solves the baseline jointly from carrier-phase measurements and
-reaches 0.1° at B = 1 m. The receiver's heading is instead emulated from ground
-truth plus datasheet noise by a separate ROS node (section 12).
+reaches 0.1° at B = 1 m. The receiver's heading is instead emulated from the
+ground-truth yaw plus datasheet noise by the corruptor node
+(`src/corruptor_node.cpp`, started by `launch/sim.launch.py`) on
+`/asv/sensors/gnss/heading`, with σ = 0.1° / B (`docs/design.md` §4.3).
 
 ### 5.5 Gazebo's noise switch (`gazebo_sensor_noise`)
 
@@ -721,8 +723,8 @@ Slightly forward of centre is optimal:
 * **Cameras:** pinhole without lens distortion, rolling shutter, motion blur,
   exposure or polariser effects. Stereo depth (if enabled) is ideal.
 * **GNSS:** Gazebo's fixes are exact (switch off); noise, RTK modes and
-  outages are the corruptor's job; dual-antenna heading emulated outside the
-  SDF.
+  outages are the corruptor's job; the dual-antenna heading is emulated by
+  the corruptor from the true yaw (`docs/design.md` §4.3), not by the SDF.
 * **Mass budget** excludes cables and mounts; some masses are estimates
   (marked `[EST]` in the YAML).
 * **Line of sight** uses axis-aligned boxes around hulls, components, sensors
