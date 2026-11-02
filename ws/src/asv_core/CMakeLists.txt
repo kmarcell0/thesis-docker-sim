@@ -16,6 +16,7 @@ find_package(Eigen3 REQUIRED)
 add_library(asv_core
   src/angles.cpp
   src/geodesy.cpp
+  src/gnss_corruptor.cpp
   src/imu_corruptor.cpp
   src/noise.cpp
 )
@@ -54,6 +55,10 @@ if(BUILD_TESTING)
   # IMU corruptor (M2.6a): 1 h record and 2000-seed spreads.
   ament_add_gtest(test_imu_corruptor test/test_imu_corruptor.cpp TIMEOUT 120)
   target_link_libraries(test_imu_corruptor asv_core)
+
+  # GNSS position corruptor (M2.6b): 2000-seed spreads.
+  ament_add_gtest(test_gnss_corruptor test/test_gnss_corruptor.cpp TIMEOUT 120)
+  target_link_libraries(test_gnss_corruptor asv_core)
 endif()
 
 ament_package()

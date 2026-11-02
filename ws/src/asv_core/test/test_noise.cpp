@@ -191,6 +191,26 @@ TEST(GaussMarkov, UnevenStepsKeepVarianceAndCorrelation)
   EXPECT_NEAR(autocorrelation(b, 200) / std::exp(-1.0 / tc), 1.0, kStatTol);
 }
 
+// redraw() (M2.6b): a fresh N(0, sigma_ss^2) value that has forgotten the old
+// one. Over many runs: spread sigma_ss, no correlation with the value before.
+TEST(GaussMarkov, RedrawIsFreshAndStationary)
+{
+  std::vector<double> before(20000), after(20000);
+  for (std::size_t s = 0; s < before.size(); ++s) {
+    GaussMarkov g(kGyroDrift, kDriftTime, s, "gyro");
+    before[s] = g.step(kDt);
+    after[s] = g.redraw();
+    EXPECT_EQ(g.value(), after[s]);
+  }
+  EXPECT_NEAR(std_dev(after) / kGyroDrift, 1.0, 0.025);
+  // Sample correlation of two independent sets: spread 1/sqrt(20000) = 0.007.
+  double cov = 0.0;
+  const double mb = mean(before), ma = mean(after);
+  for (std::size_t s = 0; s < before.size(); ++s) {cov += (before[s] - mb) * (after[s] - ma);}
+  cov /= static_cast<double>(before.size());
+  EXPECT_LT(std::abs(cov / (std_dev(before) * std_dev(after))), 0.03);
+}
+
 // ---- Allan deviation helper ------------------------------------------------
 
 // A rate that grows linearly, y = a t: neighbouring tau-averages differ by

@@ -724,6 +724,162 @@ message during an outage.
 proposes the white/slow split of each mode's 1σ and the covariance convention
 (`design.md` §4.2, `decision_notes.md` questions 3 and 5).
 
+#### Brief (agreed on 2026-11-02)
+
+**Summary (in plain words)**
+Since M2.2 Gazebo's GNSS fix is perfect (the exact antenna position). A real
+UM982 fix jitters a little every epoch (white part) and sits a bit off for
+minutes (slow part); both depend on the mode: RTK fixed (cm), RTK float (dm),
+standalone (m), or no fix in a sky-view outage. The `corruptor` node (M2.6a)
+now does this for GNSS: each clean fix gets the error of the current mode and
+goes out on `/asv/sensors/gnss/fix` with the covariance a receiver would
+report. The mode over time comes from a schedule in the noise profile, so an
+outage experiment (D9 a) is just another profile. The true mode and the true
+slow error go to ground-truth topics. Velocity and heading: M2.6c; launch file
+and recording check: M2.6d. No change to Gazebo, the world or the filter.
+
+**1. Goal:** `/asv/sensors/gnss/fix` = antenna fix + white and slow error per
+mode, no message in an outage, covariance per mode; true mode on
+`/asv/ground_truth/gnss_status`.
+
+**2. Decisions needed** (brief questions; D6 itself stays open)
+- Q1 numbers per mode, per axis 1σ (vertical scaled by the same ratios):
+
+  | Mode | total H | white H | slow σ_ss H | T_c | total V |
+  |---|---|---|---|---|---|
+  | rtk_fixed | 0.008 m [DS] | 0.005 | 0.006 | 60 s | 0.015 m [DS] |
+  | rtk_float | 0.20 m [EST] | 0.05 | 0.19 | 60 s | 0.40 m [EST] |
+  | standalone | 1.5 m [EST] | 0.3 | 1.47 | 300 s | 2.5 m [EST] |
+
+  +1 ppm left out (≤ 1 mm within 1 km of the base).
+- Q2 (D6 q5) reported covariance: a) total white² + slow² (recommended); b) white only.
+- Q3 (D6 q3) same mode after an outage: a) slow error keeps evolving across
+  the gap (exact Gauss-Markov step, recommended); b) redraw if gap > T_gap;
+  c) always redraw.
+- Q4 "0.8 cm horizontal RMS": a) per axis, σ_E = σ_N = 8 mm (recommended);
+  b) 2D, 5.7 mm per axis.
+
+Marcell (2026-11-02): **Q1 the table**, **Q2 a**, **Q3 a**, **Q4 a**.
+
+**3. Why:** the filter must never see a perfect fix; GNSS modes and outages are
+core (D9 a); D6 only matters with a real slow error. Feeds: Vehicle and Sensor
+Models; Noise Models; Ground Truth and Data Recording.
+
+**4. New ideas:** mode schedule (list in the profile, times from the first
+clean fix; nominal = rtk_fixed all run); white/slow split of one datasheet 1σ;
+redraw at a mode switch (fresh N(0, σ_ss²) draw, the position jump when RTK
+returns [LIT zhang2026impact]).
+
+**5. What will change:** `asv_core`: `gnss_corruptor.hpp/.cpp`,
+`GaussMarkov::redraw()` in `noise.hpp/.cpp`, `test_gnss_corruptor.cpp`, one
+test in `test_noise.cpp`, `CMakeLists.txt`. `asv_sim`: `gnss_corruption.hpp/.cpp`,
+`corruptor_node.cpp`, `noise_profiles/nominal.yaml`, `test_gnss_corruption.cpp`,
+`CMakeLists.txt`, ⚠ `package.xml` `<depend>asv_msgs</depend>`. ⚠ `asv.yaml`
+(per-mode table), ⚠ generator `tools/asvgen/config.py` (accept the keys),
+`make_asv.py` rerun. Docs: `design.md` §1, §4.2, `glossary.md`,
+`decision_notes.md`, this plan, `master_plan.md`, `CLAUDE.md`.
+
+**6. How it works:** per epoch, mode m from the schedule; outage → no fix
+(status still published). Else per axis j ∈ {E, N, U}: e_j = s_m,j(k) +
+n_m,j(k), n ~ N(0, σ_w²) per epoch (GNSS spec is per epoch, not a density),
+s = Gauss-Markov(σ_ss, T_c) stepped by Δt from stamps; mode switch → redraw of
+the new mode's s; same mode after a gap → s stepped over the gap (Q3 a). The
+error is added in an ENU frame centred on the clean fix (axes differ from the
+world's by d/R_E: 24 µm at 100 m and 1.5 m error). Covariance diag(σ_w² +
+σ_ss²), DIAGONAL_KNOWN; status standalone → STATUS_FIX, float/fixed →
+STATUS_GBAS_FIX. True slow error on `/asv/ground_truth/gnss_error`
+(geometry_msgs/Vector3Stamped, ENU, m). The first fix is published; stamps not
+later than the last are dropped.
+
+**7. How we will check it:** `asv_core` gtests per mode (white spread 5 %,
+slow spread over seeds, total covariance, redraw at a switch, outage, gap rule,
+same seed, multiplier 0); `asv_sim` gtests (corrupted − clean in world ENU = e
+within 0.1 mm, schedule errors, status flags, covariance). Live: ≈ 10 Hz on
+fix and status; short bag white spread ≈ 5 mm. Counts: `asv_core` 39 → about
+49, `asv_sim` 111 → about 118, Python 84.
+
+**8. What I can't check:** that the float and standalone numbers match a real
+UM982.
+
+#### Report (2026-11-02)
+
+**1. What changed**
+- `asv_core/include/asv_core/gnss_corruptor.hpp`, `src/gnss_corruptor.cpp`
+  (new): `GnssMode`, `GnssSchedule` (mode over time), `GnssCorruptor::process()`
+  = per ENU axis ε_G = β_G + σ_w·w; redraw at a mode switch, step over the gap
+  in the same mode; reports the total σ.
+- `asv_core/noise.hpp/.cpp`: `GaussMarkov::redraw()` and `sigma_ss()`.
+- `asv_core/test/test_gnss_corruptor.cpp` (new, 11 gtests); one new test in
+  `test_noise.cpp`; `CMakeLists.txt`.
+- `asv_sim/include/asv_sim/gnss_corruption.hpp`, `src/gnss_corruption.cpp`
+  (new, in library `asv_sim_corruptor`): `gnss_error_params()`,
+  `gnss_schedule()`, `corrupt_gnss()` (NavSatFix → fix + GnssStatus + slow
+  error).
+- `asv_sim/src/corruptor_node.cpp`: subscribes `/asv/gnss/fix`; publishes
+  `/asv/sensors/gnss/fix`, `/asv/ground_truth/gnss_status`,
+  `/asv/ground_truth/gnss_error`.
+- `asv_sim/config/noise_profiles/nominal.yaml`: `gnss:` block (white 1, slow
+  1, schedule rtk_fixed from 0).
+- `asv_sim/test/test_gnss_corruption.cpp` (new, 7 gtests); `CMakeLists.txt`;
+  ⚠ `package.xml` `<depend>asv_msgs</depend>`.
+- ⚠ `asv.yaml`: `unicore_um982_rtk.position_modes` (Q1 table). ⚠ generator
+  `tools/asvgen/config.py`: new kind `mapping`, optional `position_modes` for
+  `gnss`/`gnss_dual`; `tests/test_asvgen.py` +1 test. `make_asv.py` rerun:
+  only the fingerprint lines of the 6 generated files changed
+  (80b8183fdba9 → 301b46547e66).
+- Docs: `design.md` §1 (new topic `/asv/ground_truth/gnss_error`), §4.2
+  (table, model, as built); `glossary.md` (σ_w, ε_G, β_G proposed; mode
+  schedule, white/slow split, redraw); `decision_notes.md` (D6 q3, q5
+  answered); `HOW_IT_WORKS.md` (the key); `master_plan.md`; `CLAUDE.md`.
+
+**2. How it was checked**
+- `colcon build --packages-up-to asv_sim`: no warnings.
+- `colcon test --packages-select asv_core asv_sim` + `colcon test-result`:
+  `185 tests, 0 errors, 0 failures, 0 skipped` (asv_core 39 + 12 = 51:
+  `test_gnss_corruptor` 11, `test_noise` 19; asv_sim 111 + 7 = 118; 16 CTest
+  wrappers). All new tests passed on the first run. `test_gnss_corruptor` 5.6 s.
+- `python3 -m unittest discover -s tests`: `Ran 85 tests ... OK`.
+- Live (headless sim + `ros2 run asv_sim corruptor`): log `GNSS rtk_fixed
+  white 0.005, slow 0.006 m; schedule: rtk_fixed@0.000000s`; `ros2 node info
+  /corruptor` shows `/asv/gnss/fix` in and the three new topics out; `ros2
+  topic hz` 8.6 Hz wall clock (real-time factor about 0.86).
+- 33 s bag `ws/data/bags/m26b_check` (script `ws/data/m26b_check.py`, not
+  committed): 329 corrupted fixes = 329 clean fixes in the same window, 0
+  missing, 0 extra; status stamps = fix stamps; 10.000 Hz sim time; mode 3
+  (RTK fixed) throughout. Corrupted − clean − β_G in world ENU (Python
+  geodesy): mean −0.27 / −0.24 / +0.13 mm, std 5.15 / 5.13 / 8.64 mm
+  (expected 5.0 / 5.0 / 9.4 mm; with n = 329 the std scatters ±3.9 %, so up
+  is −8 %, about two of those). Covariance diag 6.1e-5, 6.1e-5, 2.16e-4 m²
+  (= 7.81² mm², 14.70² mm²), type 2 (DIAGONAL_KNOWN), status 2 (GBAS_FIX).
+
+**3. What could not be checked:** that the numbers match a real UM982 (the
+split, float, standalone and T_c values are estimates); the outage and mode
+switches were only checked in unit tests, not live (the nominal profile has
+none; M2.6d or the M6 profiles will show them in Gazebo).
+
+**4. How to read the code:** start with `gnss_corruptor.hpp` (the equations
+in the header comment), then `GnssCorruptor::process()`: schedule → mode;
+outage returns early; `same_mode ? slow.step(dt) : slow.redraw()` is the Q3
+rule; `error = slow + white_sigma * normal()` is ε_G = β_G + σ_w·w. Then
+`gnss_corruption.cpp`: `gnss_error_params()` (asv.yaml × profile),
+`corrupt_gnss()` (ENU error → lat/lon with `LocalTangentPlane`, covariance,
+status). The node only wires topics.
+
+**5. Numbers for the thesis**
+- Per-axis 1σ white/slow/T_c: RTK fixed 0.005 / 0.006 m / 60 s (v 0.0094 /
+  0.0113 m), RTK float 0.05 / 0.19 m / 60 s (v 0.10 / 0.38 m), standalone
+  0.3 / 1.47 m / 300 s (v 0.5 / 2.45 m) [EST, `asv.yaml`; RTK fixed totals
+  8 mm / 15 mm DS].
+- Reported totals: 7.81 mm, 0.196 m, 1.500 m horizontal per axis [REPO].
+- Live white spread RTK fixed 5.15 / 5.13 / 8.64 mm, n = 329 [MEASURED].
+
+**6. Check your understanding**
+1. Why is the GNSS white noise not divided by √dt, while the IMU's is?
+2. GNSS drops out for 2 s in RTK fixed and comes back in RTK fixed. Roughly
+   how similar is the slow error before and after (T_c = 60 s)? And after a
+   10-minute outage?
+3. Why does the filter only learn the mode through `position_covariance`?
+
 ### M2.6c GNSS velocity and dual-antenna heading
 **Goal:** `/asv/sensors/gnss/velocity` (ENU, from ground-truth position
 differences + noise, D5 C) and `/asv/sensors/gnss/heading` (α = π/2 − ψ + noise,

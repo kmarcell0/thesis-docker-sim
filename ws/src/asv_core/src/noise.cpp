@@ -132,4 +132,10 @@ double GaussMarkov::step(double dt)
   return value_;
 }
 
+double GaussMarkov::redraw()
+{
+  value_ = sigma_ss_ * stream_.normal();  // N(0, sigma_ss^2), as at the start
+  return value_;
+}
+
 }  // namespace asv_core

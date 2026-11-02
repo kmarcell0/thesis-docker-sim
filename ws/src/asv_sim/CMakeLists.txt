@@ -62,8 +62,11 @@ target_link_libraries(teleop
 )
 # Corruptor (M2.6a, IMU): the message glue is its own library (ROS messages,
 # no node), so it is unit tested; the maths is in asv_core.
+# M2.6b adds GNSS position (NavSatFix in, NavSatFix + asv_msgs/GnssStatus +
+# Vector3Stamped out).
 find_package(sensor_msgs REQUIRED)
-add_library(asv_sim_corruptor src/imu_corruption.cpp)
+find_package(asv_msgs REQUIRED)
+add_library(asv_sim_corruptor src/imu_corruption.cpp src/gnss_corruption.cpp)
 target_include_directories(asv_sim_corruptor PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
@@ -72,6 +75,8 @@ target_link_libraries(asv_sim_corruptor PUBLIC
   asv_core::asv_core
   yaml-cpp::yaml-cpp
   ${sensor_msgs_TARGETS}
+  ${geometry_msgs_TARGETS}
+  ${asv_msgs_TARGETS}
 )
 add_executable(corruptor src/corruptor_node.cpp)
 target_link_libraries(corruptor
@@ -129,6 +134,11 @@ if(BUILD_TESTING)
   ament_add_gtest(test_imu_corruption test/test_imu_corruption.cpp)
   target_link_libraries(test_imu_corruption asv_sim_corruptor)
   target_compile_definitions(test_imu_corruption PRIVATE
+    ASV_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
+  # GNSS corruption glue (M2.6b): reads config/asv.yaml and noise_profiles/.
+  ament_add_gtest(test_gnss_corruption test/test_gnss_corruption.cpp)
+  target_link_libraries(test_gnss_corruption asv_sim_corruptor)
+  target_compile_definitions(test_gnss_corruption PRIVATE
     ASV_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
 endif()
 

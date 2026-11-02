@@ -1,10 +1,16 @@
 // corruptor: turns the clean sensor topics into realistic ones (D1 a,
 // design.md section 4). Only I/O; the maths is asv_core::ImuCorruptor and
-// asv_sim::corrupt_imu() (imu_corruption.hpp). M2.6a: IMU only; GNSS follows
-// in M2.6b/c.
-//   in:  /asv/imu/data               clean IMU from Gazebo (M2.2)
-//   out: /asv/sensors/imu/data       noisy gyro and accel, no orientation (D11)
-//        /asv/ground_truth/imu_bias  the true bias in it, for the evaluation
+// asv_core::GnssCorruptor, the message glue asv_sim::corrupt_imu()
+// (imu_corruption.hpp) and asv_sim::corrupt_gnss() (gnss_corruption.hpp).
+// M2.6a IMU, M2.6b GNSS position; velocity and heading follow in M2.6c.
+//   in:  /asv/imu/data                  clean IMU from Gazebo (M2.2)
+//        /asv/gnss/fix                  clean primary antenna fix (M2.2)
+//   out: /asv/sensors/imu/data          noisy gyro and accel, no orientation (D11)
+//        /asv/sensors/gnss/fix          fix with the error of the current mode;
+//                                       nothing in an outage
+//        /asv/ground_truth/imu_bias     the true IMU bias, for the evaluation
+//        /asv/ground_truth/gnss_status  the true receiver mode, every epoch
+//        /asv/ground_truth/gnss_error   the true slow GNSS error (ENU, m)
 // Run: ros2 run asv_sim corruptor --ros-args -p use_sim_time:=true
 //        [-p noise_profile:=<name>]   (config/noise_profiles/<name>.yaml)
 //
@@ -19,6 +25,7 @@
 #include "sensor_msgs/msg/imu.hpp"
 #include "yaml-cpp/yaml.h"
 
+#include "asv_sim/gnss_corruption.hpp"
 #include "asv_sim/imu_corruption.hpp"
 
 class CorruptorNode : public rclcpp::Node
@@ -45,12 +52,32 @@ public:
       p.gyro.turn_on_sigma, p.gyro.drift_sigma, p.accel.density, p.accel.turn_on_sigma,
       p.accel.drift_sigma, p.gyro.drift_time);
 
+    const auto g = asv_sim::gnss_error_params(asv, profile);
+    auto schedule = asv_sim::gnss_schedule(profile);
+    std::string modes;
+    for (const auto & e : schedule.entries()) {
+      modes += " " + asv_core::gnss_mode_name(e.mode) + "@" + std::to_string(e.from) + "s";
+    }
+    gnss_ = std::make_unique<asv_core::GnssCorruptor>(g, std::move(schedule), seed);
+    RCLCPP_INFO(
+      get_logger(), "GNSS rtk_fixed white %.4g, slow %.4g m; schedule:%s",
+      g.rtk_fixed.white_h, g.rtk_fixed.slow_h, modes.c_str());
+
     const rclcpp::QoS qos(50);
     imu_pub_ = create_publisher<sensor_msgs::msg::Imu>("/asv/sensors/imu/data", qos);
     bias_pub_ = create_publisher<sensor_msgs::msg::Imu>("/asv/ground_truth/imu_bias", qos);
     imu_sub_ = create_subscription<sensor_msgs::msg::Imu>(
       "/asv/imu/data", qos,
       [this](const sensor_msgs::msg::Imu & msg) {on_imu(msg);});
+
+    fix_pub_ = create_publisher<sensor_msgs::msg::NavSatFix>("/asv/sensors/gnss/fix", qos);
+    status_pub_ =
+      create_publisher<asv_msgs::msg::GnssStatus>("/asv/ground_truth/gnss_status", qos);
+    gnss_error_pub_ = create_publisher<geometry_msgs::msg::Vector3Stamped>(
+      "/asv/ground_truth/gnss_error", qos);
+    fix_sub_ = create_subscription<sensor_msgs::msg::NavSatFix>(
+      "/asv/gnss/fix", qos,
+      [this](const sensor_msgs::msg::NavSatFix & msg) {on_fix(msg);});
   }
 
 private:
@@ -71,10 +98,30 @@ private:
     bias_pub_->publish(out->bias);
   }
 
+  void on_fix(const sensor_msgs::msg::NavSatFix & clean)
+  {
+    const auto out = asv_sim::corrupt_gnss(clean, *gnss_);
+    if (!out) {
+      RCLCPP_WARN_THROTTLE(
+        get_logger(), *get_clock(), 5000, "GNSS fix with an old stamp dropped");
+      return;
+    }
+    status_pub_->publish(out->status);
+    if (out->fix) {
+      fix_pub_->publish(*out->fix);
+      gnss_error_pub_->publish(*out->slow_error);
+    }
+  }
+
   std::unique_ptr<asv_core::ImuCorruptor> imu_;
+  std::unique_ptr<asv_core::GnssCorruptor> gnss_;
   std::uint64_t received_ = 0;
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_, bias_pub_;
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
+  rclcpp::Publisher<sensor_msgs::msg::NavSatFix>::SharedPtr fix_pub_;
+  rclcpp::Publisher<asv_msgs::msg::GnssStatus>::SharedPtr status_pub_;
+  rclcpp::Publisher<geometry_msgs::msg::Vector3Stamped>::SharedPtr gnss_error_pub_;
+  rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr fix_sub_;
 };
 
 int main(int argc, char ** argv)

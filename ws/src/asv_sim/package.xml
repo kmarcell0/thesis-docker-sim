@@ -22,6 +22,8 @@
   <depend>yaml_cpp_vendor</depend>
   <!-- corruptor node (M2.6a): sensor_msgs/Imu in and out -->
   <depend>sensor_msgs</depend>
+  <!-- corruptor node (M2.6b): asv_msgs/GnssStatus on /asv/ground_truth/gnss_status -->
+  <depend>asv_msgs</depend>
 
   <exec_depend>ros_gz_sim</exec_depend>
   <exec_depend>ros_gz_bridge</exec_depend>

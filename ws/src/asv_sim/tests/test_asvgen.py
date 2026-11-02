@@ -125,6 +125,13 @@ class Config(unittest.TestCase):
         cfg['gazebo_sensor_noise'] = 0
         self.assertIn('gazebo_sensor_noise: expected bool', self.errors_of(cfg))
 
+    def test_gnss_position_modes_must_be_a_mapping(self):
+        """M2.6b: the corruptor's per-mode table is accepted (no warning in the
+        shipped config) but must be a mapping."""
+        cfg = copy.deepcopy(self.base)
+        cfg['sensor_specs']['unicore_um982_rtk']['position_modes'] = 0.008
+        self.assertIn('position_modes: expected mapping', self.errors_of(cfg))
+
     def test_unknown_key_is_only_a_warning(self):
         cfg = copy.deepcopy(self.base)
         cfg['battery']['colour'] = 'blue'

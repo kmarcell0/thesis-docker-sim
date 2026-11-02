@@ -48,14 +48,15 @@ publish-time stamps [SRC AP_DDS], so the real boat needs a small converter node
 | `/clock` | rosgraph_msgs/Clock | every physics step | bridge | time |
 | `/asv/ground_truth/odom` | nav_msgs/Odometry | 50 Hz [REPO] | bridge (Gazebo OdometryPublisher) | ground truth |
 | `/asv/ground_truth/buoys` | asv_msgs/LandmarkArray (latched) | once | ground-truth tool (M2.7) | ground truth |
-| `/asv/ground_truth/gnss_status` | asv_msgs/GnssStatus | 10 Hz | corruptor | ground truth (true fix mode, outage flag) |
+| `/asv/ground_truth/gnss_status` | asv_msgs/GnssStatus | 10 Hz | corruptor (M2.6b) | ground truth (true fix mode, outage flag); every clean epoch, also in an outage |
+| `/asv/ground_truth/gnss_error` | geometry_msgs/Vector3Stamped (frame `world`, ENU, m) | 10 Hz | corruptor (M2.6b) | ground truth: the true slow GNSS error β_G in the fix with the same stamp; nothing in an outage |
 | `/asv/ground_truth/imu_bias` | sensor_msgs/Imu | 200 Hz | corruptor (M2.6a) | ground truth: true total IMU bias b0 + b(k), gyro in angular_velocity, accelerometer in linear_acceleration; same stamp as the corrupted sample |
 | `/asv/imu/data` | sensor_msgs/Imu | 200 Hz [REPO] | bridge | clean after M2.2 (orientation perfect); until then it carries Gazebo's IMU noise |
 | `/asv/gnss/fix` | sensor_msgs/NavSatFix | 10 Hz [REPO] | bridge | clean |
 | `/asv/gnss/secondary/fix` | sensor_msgs/NavSatFix | 10 Hz [REPO] | bridge | clean (only for checks) |
 | `/asv/lidar/points` | sensor_msgs/PointCloud2 | 10 Hz [REPO] | bridge | clean |
 | `/asv/sensors/imu/data` | sensor_msgs/Imu | 200 Hz | corruptor | realistic; raw gyro and accel, no orientation (D11, §4.1) |
-| `/asv/sensors/gnss/fix` | sensor_msgs/NavSatFix | 10 Hz | corruptor | realistic |
+| `/asv/sensors/gnss/fix` | sensor_msgs/NavSatFix | 10 Hz | corruptor (M2.6b) | realistic; nothing in an outage (§4.2) |
 | `/asv/sensors/gnss/heading` | asv_msgs/GnssHeading | 10 Hz | corruptor | realistic |
 | `/asv/sensors/gnss/velocity` | geometry_msgs/TwistWithCovarianceStamped (ENU) | 10 Hz | corruptor | realistic (D5 C: prediction input) |
 | `/asv/sensors/lidar/points` | sensor_msgs/PointCloud2 | 10 Hz | corruptor | realistic (only needed for real perception, M5) |
@@ -224,27 +225,51 @@ The clean fix from Gazebo is the exact position of the **antenna** (not of
 base_link). The corruptor converts it to local ENU metres, adds the error in
 metres, converts back to latitude/longitude, and publishes a NavSatFix.
 
-| Mode | White σ (horizontal) | Slowly varying error (Gauss-Markov σ_ss, T_c) | Covariance the receiver reports | Source |
-|---|---|---|---|---|
-| RTK fixed | 0.008 m (+1 ppm) | [EST, to choose in M2.6] | (0.008 m)² | [DS] Unicore UM982 brief, in `asv.yaml` |
-| RTK float | [EST] decimetre level | [EST] | [EST] | [LIT] RTK literature (gnss-aided-navigation-notes) |
-| Standalone | 1.5 m RMS | [EST]: most of the standalone error varies slowly | (1.5 m)² | [DS] Unicore brief (single point 1.5 m H RMS); `asv.yaml` tags it [EST] |
-| Outage | no message published | | | schedule in the noise profile |
+Per-axis 1σ (decided 2026-11-02, M2.6b; h = east and north each, v = up; in
+`asv.yaml` `sensor_specs.unicore_um982_rtk.position_modes`):
 
-- Vertical noise is applied too (1.5 cm RTK [DS]), even though the planar filter
-  ignores height.
+| Mode | Total h (v) | White σ_w h (v) | Slow σ_ss h (v) | T_c | Source |
+|---|---|---|---|---|---|
+| RTK fixed | 0.008 m (0.015 m) | 0.005 (0.0094) m | 0.006 (0.0113) m | 60 s | total [DS] Unicore UM982 (+1 ppm left out: ≤ 1 mm within 1 km of the base); split and T_c [EST] |
+| RTK float | 0.20 m (0.40 m) | 0.05 (0.10) m | 0.19 (0.38) m | 60 s | [EST] decimetre level [LIT gnss-aided-navigation-notes] |
+| Standalone | 1.5 m (2.5 m) | 0.3 (0.5) m | 1.47 (2.45) m | 300 s | [EST] (`asv.yaml` single point 1.5 m) |
+| Outage | no fix published | | | | schedule in the noise profile |
+
+- √(σ_w² + σ_ss²) gives the totals: 7.8 mm (fixed), 0.196 m (float),
+  1.500 m (standalone). The vertical split uses the horizontal ratios.
+- "0.8 cm horizontal RMS" is read as per axis (σ_E = σ_N = 8 mm), not as a
+  2D value (decided 2026-11-02); Unicore's definition is not confirmed.
+- Model per fix and axis j: ε_G,j = β_G,j + σ_w·w, w ~ N(0, 1) drawn per
+  epoch (a GNSS accuracy is per epoch, not a density); β_G is Gauss-Markov
+  (σ_ss, T_c of the mode), stepped by the time between the stamps of
+  consecutive fixes.
 - The fix quality reaches the filter **only through `position_covariance`** (m²,
-  ENU, `COVARIANCE_TYPE_DIAGONAL_KNOWN`), as assumption A4 says. NavSatStatus
-  can't express RTK fixed vs float. The true mode goes to
+  ENU, `COVARIANCE_TYPE_DIAGONAL_KNOWN`), as assumption A4 says. The covariance
+  is the **total** σ_w² + σ_ss² per axis (decided 2026-11-02, D6 question 5).
+  NavSatStatus can't express RTK fixed vs float: `STATUS_FIX` in standalone,
+  `STATUS_GBAS_FIX` with RTK. The true mode goes to
   `/asv/ground_truth/gnss_status` for evaluation only.
-- At a mode switch the slowly varying error gets a new draw. That reproduces the
-  position jump seen when RTK comes back [LIT `zhang2026impact`].
-- How the filter treats this correlated error is decision D6. Two points for
-  the M2.6 brief (`decision_notes.md` questions 3 and 5): each mode's 1σ total
-  should be split into a white and a slow part (not both at full size), and the
-  reported covariance should follow one convention (recommended: the total).
-  Whether the slow error gets a new draw when GNSS returns in the same mode after
-  an outage is also open.
+- **Mode switch** → the new mode's slow error gets a new draw from
+  N(0, σ_ss²). That reproduces the position jump seen when RTK comes back [LIT
+  `zhang2026impact`]. **Same mode after an outage** → no new draw: β_G is
+  stepped over the whole gap (exact for any length), so a short gap keeps the
+  offset and a gap ≫ T_c gives a new one (decided 2026-11-02, D6 question 3).
+- How the filter treats this correlated error is decision D6 (open).
+- **Mode schedule** (noise profile key `gnss.schedule`): a list of
+  `{from: <s>, mode: rtk_fixed | rtk_float | standalone | outage}`; `from` is
+  counted from the first clean fix, the first entry starts at 0. Nominal:
+  RTK fixed for the whole run. Profile multipliers `gnss.white`, `gnss.slow`
+  scale all modes.
+- **As built (M2.6b):** `asv_core/gnss_corruptor.hpp` (`GnssCorruptor`,
+  `GnssSchedule`; 18 streams `gnss.<mode>.<white|slow>_<e|n|u>`);
+  `asv_sim/gnss_corruption.hpp` (parameters, schedule, messages); node
+  `corruptor` reads `/asv/gnss/fix`. The error is added in an ENU frame
+  centred on the clean fix and converted back with the geodesy helper (M2.1);
+  its axes differ from the world's by distance / Earth radius (24 µm on a
+  1.5 m error at 100 m from the origin). The first fix is published (no dt
+  needed); a fix whose stamp is not later than the previous one is dropped.
+  `GnssStatus.corrections_lost` = standalone; `heading_available` is false
+  until M2.6c.
 - D5 C: the corruptor also publishes a noisy GNSS (Doppler) velocity in ENU
   (geometry_msgs/TwistWithCovarianceStamped, `/asv/sensors/gnss/velocity`), from
   ground-truth position differences plus noise. The UM982 velocity accuracy is

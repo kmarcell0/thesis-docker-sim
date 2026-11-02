@@ -181,6 +181,15 @@ Questions:
    (white + slow), as a receiver's RMS spec means? `design.md` §4.2 mixes the two
    now (RTK reports only the white part, standalone the total). Recommended: total.
 
+Answered on 2026-11-02 in the M2.6b brief (corruptor side; D6 itself stays
+open): **q3**: no threshold: in the same mode the slow error is stepped over
+the whole gap (exact Gauss-Markov step), so a short gap keeps the offset and a
+gap much longer than T_c gives a new one; the D6 b filter's own prediction over
+the gap does the same, so it needs no reset rule for gaps. A mode switch always
+redraws. **q5**: the reported covariance is the total, σ_w² + σ_ss² per axis.
+Also decided there: "0.8 cm horizontal RMS" read as per axis (σ_E = σ_N =
+8 mm), and the per-mode split of `asv.yaml` `position_modes`.
+
 ## D10. Number of seeds (runs per setting)
 
 You wanted to decide once the run speed is known. With D4 a (record once, replay

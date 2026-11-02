@@ -41,6 +41,8 @@ proposes, Marcell decides, and then this table is updated.
 | η | white-noise density | e.g. rad/s/√Hz | proposed |
 | n_conf | sightings needed before a tentative landmark is confirmed | | proposed |
 | σ_ss, T_c | size (steady-state standard deviation) and correlation time of a Gauss-Markov error | unit of the signal, s | proposed |
+| σ_w | per-sample (per-epoch) standard deviation of a white error; for the IMU σ_w = η/√dt | unit of the signal | proposed |
+| ε_G, β_G | GNSS position error added by the corruptor (ε_G = β_G + white part) and its slow (Gauss-Markov) part, per ENU axis (M2.6b) | m | proposed (s, e are taken by the guidance) |
 | τ | Allan averaging time (only this) | s | proposed |
 | M | number of repeated runs (seeds) per setting | | proposed |
 | n | number of values checked in NEES or NIS (degrees of freedom) | | proposed |
@@ -394,6 +396,23 @@ added up.
 corrections, metre level. *RTK float*: corrections used but not fully solved,
 decimetre level. *RTK fixed*: fully solved, centimetre level.
 [gnss-aided-navigation-notes]
+In the corruptor (M2.6b) each mode has its own white and slow error size;
+`asv.yaml` `position_modes` holds them. A *mode schedule* in the noise profile
+says which mode is active when (e.g. "from 120 s outage, from 150 s
+standalone"), counted from the first clean fix.
+
+**White/slow split.** A datasheet gives one accuracy number (1σ) for a GNSS
+mode. A real error has a part that changes every epoch (white) and a part
+that stays for seconds to minutes (slow, Gauss-Markov). The corruptor splits
+the number into the two so that √(σ_w² + σ_ss²) is the datasheet total
+(M2.6b). Only the slow part makes the D6 question matter: a white error
+averages away, a slow one does not.
+
+**Redraw (of a slow error).** When the GNSS mode changes, the new mode's slow
+error starts from a fresh random value, not from where it was: the position
+jumps, as a real receiver's does when RTK comes back. Returning to the same
+mode after an outage is not a redraw: the slow error moves on by the length of
+the gap (decided 2026-11-02).
 
 **rosidl, interface package.** rosidl turns `.msg` files into C++ and Python
 types. Custom messages usually go in their own package (here `asv_msgs`).

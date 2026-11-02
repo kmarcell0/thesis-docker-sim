@@ -16,6 +16,7 @@ class ConfigError(Exception):
 
 
 NUM, INT, BOOL, STR = 'number', 'integer', 'bool', 'string'
+MAP = 'mapping'                  # any mapping; its contents are checked by its user
 VEC2, VEC3 = 'vec2', 'vec3'
 
 SECTIONS = {
@@ -54,6 +55,10 @@ SPEC_OPTIONAL = {
                       'depth_height': INT, 'depth_rate': NUM},
     'imu': {'gyro_bias': NUM, 'accel_bias': NUM, 'gyro_bias_drift': NUM, 'accel_bias_drift': NUM,
             'bias_drift_time': NUM},
+    # GNSS error per receiver mode: read by the corruptor (M2.6b), which
+    # checks the contents; the generator does not use it.
+    'gnss': {'position_modes': MAP},
+    'gnss_dual': {'position_modes': MAP},
 }
 DEPTH_KEYS = ('depth_range', 'depth_width', 'depth_height', 'depth_rate')
 SENSOR_TYPES = tuple(SPEC_REQUIRED)
@@ -124,6 +129,8 @@ def _type_ok(value, kind):
         return isinstance(value, bool)
     if kind == STR:
         return isinstance(value, str)
+    if kind == MAP:
+        return isinstance(value, dict)
     if kind in (VEC2, VEC3):
         n = 2 if kind == VEC2 else 3
         return isinstance(value, list) and len(value) == n and all(num(v) for v in value)

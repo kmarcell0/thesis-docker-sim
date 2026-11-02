@@ -98,9 +98,16 @@ public:
   // Current value b_k.
   double value() const {return value_;}
 
+  double sigma_ss() const {return sigma_ss_;}
+
   // Advances the process by dt (s, > 0, else std::invalid_argument) and
   // returns the new value b_{k+1}.
   double step(double dt);
+
+  // Replaces the current value by a fresh draw from N(0, sigma_ss^2), from the
+  // same stream: the process forgets its past. The GNSS corruptor uses it at
+  // a receiver mode switch (M2.6b, design.md 4.2).
+  double redraw();
 
 private:
   double sigma_ss_;

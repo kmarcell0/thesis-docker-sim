@@ -150,6 +150,17 @@ sensor_specs:
     horizontal_noise: 0.008       # [DS] 0.8 cm + 1 ppm (RMS)
     vertical_noise: 0.015         # [DS] 1.5 cm + 1 ppm (RMS)
     heading_accuracy_1m: 0.1      # [DS] 0.1 deg at 1 m baseline
+    # Position error per receiver mode, used by the corruptor (M2.6b,
+    # design.md 4.2; decided 2026-11-02). Per-axis 1-sigma in m (h = east
+    # and north each, v = up): white = new draw every epoch, slow =
+    # Gauss-Markov sigma_ss with correlation time drift_time (s). The total
+    # sqrt(white^2 + slow^2) is what the receiver reports. RTK fixed total
+    # 8 mm / 15 mm [DS] (+1 ppm left out); the split, float and standalone
+    # values and all drift times are [EST]; v uses the same split as h.
+    position_modes:
+      rtk_fixed:  {white_h: 0.005, slow_h: 0.006, white_v: 0.0094, slow_v: 0.0113, drift_time: 60}
+      rtk_float:  {white_h: 0.05,  slow_h: 0.19,  white_v: 0.10,   slow_v: 0.38,   drift_time: 60}
+      standalone: {white_h: 0.3,   slow_h: 1.47,  white_v: 0.5,    slow_v: 2.45,   drift_time: 300}
 
   unicore_um982_no_rtk:           # same receiver without corrections (base lost)
     mass: 0.15
