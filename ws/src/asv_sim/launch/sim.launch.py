@@ -1,6 +1,8 @@
-"""Launch Gazebo Harmonic sim with ros_gz_bridge, static TF publishers,
-the corruptor (realistic sensor data under /asv/sensors/..., M2.6d) and the
-true buoy map publisher (/asv/ground_truth/buoys, latched, M2.7).
+"""Launch Gazebo Harmonic sim with ros_gz_bridge, static TF publishers
+(sensor frames, and world -> map, M2.8), the ground-truth TF node
+(world -> base_link, M2.8), the corruptor (realistic sensor data under
+/asv/sensors/..., M2.6d), the true buoy map publisher (/asv/ground_truth/buoys,
+latched, M2.7) and, if asked, RViz.
 
 Usage (from host):
   docker compose exec -T sim bash -ic \
@@ -10,6 +12,10 @@ Launch arguments:
   gui            (default 'true')     – 'false' for headless (server-only) mode
   corruptor      (default 'true')     – 'false' to leave the corruptor out
   noise_profile  (default 'nominal')  – config/noise_profiles/<name>.yaml
+  ground_truth_tf (default 'true')    – 'false' leaves world -> base_link out
+                                        (for slam_node, M4.1: base_link may
+                                        have only one parent)
+  rviz           (default 'false')    – 'true' opens RViz with rviz/asv.rviz
 task1.launch.py and maneuver.launch.py include this file, so the same
 arguments work there (e.g. noise_profile:=mode_check).
 """
@@ -102,10 +108,34 @@ def _launch_setup(context, *args, **kwargs):
             )
         )
 
+    # world -> map: identity, the filter's frame is the world frame
+    # (design.md section 2). slam_node (M4.1) then hangs base_link under map.
+    actions.append(
+        Node(
+            package='tf2_ros',
+            executable='static_transform_publisher',
+            name='static_tf_map',
+            arguments=['--frame-id', 'world', '--child-frame-id', 'map'],
+            output='screen',
+        )
+    )
+
+    # ── 3b. world -> base_link from ground truth (M2.8) ──
+    # Exactly one node may publish base_link's parent: this one, or slam_node.
+    if _is_true(context, 'ground_truth_tf'):
+        actions.append(
+            Node(
+                package='asv_sim',
+                executable='ground_truth_tf',
+                name='ground_truth_tf',
+                output='screen',
+            )
+        )
+
     # ── 4. Corruptor: clean sensor topics -> /asv/sensors/... (D1 a, D3 b) ──
     # On by default (M2.6d Q1 a), so every run has the realistic topics the
     # filter reads. It reads asv.yaml and the profile itself (corruptor_node.cpp).
-    if LaunchConfiguration('corruptor').perform(context).lower() not in ('false', '0', 'no'):
+    if _is_true(context, 'corruptor'):
         actions.append(
             Node(
                 package='asv_sim',
@@ -127,7 +157,24 @@ def _launch_setup(context, *args, **kwargs):
         )
     )
 
+    # ── 6. RViz live view (M2.8), off by default (headless runs) ──
+    if _is_true(context, 'rviz'):
+        actions.append(
+            Node(
+                package='rviz2',
+                executable='rviz2',
+                name='rviz2',
+                arguments=['-d', os.path.join(pkg_share, 'rviz', 'asv.rviz')],
+                output='screen',
+            )
+        )
+
     return actions
+
+
+def _is_true(context, name):
+    """A boolean launch argument: anything but false/0/no counts as true."""
+    return LaunchConfiguration(name).perform(context).lower() not in ('false', '0', 'no')
 
 
 def generate_launch_description():
@@ -146,6 +193,16 @@ def generate_launch_description():
             'noise_profile',
             default_value='nominal',
             description='Corruptor noise profile: config/noise_profiles/<name>.yaml',
+        ),
+        DeclareLaunchArgument(
+            'ground_truth_tf',
+            default_value='true',
+            description='Set to "false" to leave out world -> base_link from ground truth',
+        ),
+        DeclareLaunchArgument(
+            'rviz',
+            default_value='false',
+            description='Set to "true" to open RViz with rviz/asv.rviz',
         ),
         OpaqueFunction(function=_launch_setup),
     ])

@@ -262,7 +262,10 @@ speed. The feedback (PI) part only corrects what the model gets wrong.
 **Frame, TF, TF tree.** A *frame* is a coordinate system (world, map, base_link,
 lidar_link, ...). *TF* is the ROS system that knows how frames are placed
 relative to each other. The *TF tree* is the set of all these links; each frame
-can have only one parent.
+can have only one parent. A *static* transform never changes (a sensor mount,
+world → map): it is sent once on `/tf_static` and kept. A *dynamic* transform
+(world → base_link) is sent with a timestamp, again and again, on `/tf`; a
+lookup at time t interpolates between the two nearest stamps (M2.8).
 
 **Gate (course).** Two buoys, red and green, that the boat must pass between
 (Task 1 has two). Not the same as the Mahalanobis gate below. The gate monitor

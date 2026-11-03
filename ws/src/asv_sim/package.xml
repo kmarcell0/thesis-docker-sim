@@ -24,11 +24,14 @@
   <depend>sensor_msgs</depend>
   <!-- corruptor node (M2.6b): asv_msgs/GnssStatus on /asv/ground_truth/gnss_status -->
   <depend>asv_msgs</depend>
+  <!-- ground_truth_tf node (M2.8): TF world -> base_link (static TF publishers in sim.launch.py) -->
+  <depend>tf2_ros</depend>
 
   <exec_depend>ros_gz_sim</exec_depend>
   <exec_depend>ros_gz_bridge</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <!-- live view, sim.launch.py rviz:=true (M2.8) -->
+  <exec_depend>rviz2</exec_depend>
 
   <test_depend>ament_cmake_gtest</test_depend>
 

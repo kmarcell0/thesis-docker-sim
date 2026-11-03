@@ -46,6 +46,8 @@ publish-time stamps [SRC AP_DDS], so the real boat needs a small converter node
 | Topic | Type | Rate | Published by | Kind |
 |---|---|---|---|---|
 | `/clock` | rosgraph_msgs/Clock | every physics step | bridge | time |
+| `/tf` | tf2_msgs/TFMessage | 50 Hz [MEASURED M2.8] | `ground_truth_tf` (M2.8; world → base_link, odometry stamp), later slam_node (map → base_link) | ground truth (display, sensor poses) |
+| `/tf_static` | tf2_msgs/TFMessage (latched) | once per publisher | static TF publishers in `sim.launch.py` (world → map, sensor frames) | static |
 | `/asv/ground_truth/odom` | nav_msgs/Odometry | 50 Hz [REPO] | bridge (Gazebo OdometryPublisher) | ground truth |
 | `/asv/ground_truth/buoys` | asv_msgs/LandmarkArray (latched) | once | `buoy_map_publisher` (M2.7) | ground truth |
 | `/asv/ground_truth/gnss_status` | asv_msgs/GnssStatus | 10 Hz | corruptor (M2.6b) | ground truth (true fix mode, outage flag); every clean epoch, also in an outage |
@@ -95,8 +97,8 @@ not as true velocity for evaluation: Gazebo smooths it (§10).
 | Frame | Meaning | Who publishes the transform |
 |---|---|---|
 | `world` | Gazebo's world frame (the thesis's 𝒲): east-north-up (ENU), origin at the world's reference point (`<spherical_coordinates>` in `roboboat_course.sdf`: 27.367256° N, 82.451120° W, i.e. `longitude_deg` −82.451120; elevation 0; heading 0) [REPO]. Ground truth uses it. | (root) |
-| `map` | The filter's frame. Identical to `world`: same origin, same axes. | static identity transform world → map (launch file) |
-| `base_link` | Boat body (ℬ): x forward, y left, z up; origin midway between the hulls, at hull-axis height, at mid hull length [REPO]. | **exactly one** node: the ground-truth TF node (world → base_link) when the filter is off, or slam_node (map → base_link) when it is on. Never both: a frame may have only one parent. |
+| `map` | The filter's frame. Identical to `world`: same origin, same axes. | static identity transform world → map (`sim.launch.py`, node `static_tf_map`, M2.8) |
+| `base_link` | Boat body (ℬ): x forward, y left, z up; origin midway between the hulls, at hull-axis height, at mid hull length [REPO]. | **exactly one** node: the ground-truth TF node `ground_truth_tf` (world → base_link, copied from `/asv/ground_truth/odom`, M2.8) when the filter is off, or slam_node (map → base_link) when it is on. Never both: a frame may have only one parent. `sim.launch.py ground_truth_tf:=false` leaves the ground-truth node out. |
 | sensor frames (𝒮) | all frames in `config/asv_frames.yaml`, e.g. `lidar_link`, `zed_link`, `zed_left_optical`, `zed_right_optical`, `cam_wide_front_link`, `cam_wide_front_optical`, `imu_link`, `gnss_primary_link`, `gnss_secondary_link` | static, from `config/asv_frames.yaml` [REPO] |
 
 Rules:
@@ -122,6 +124,9 @@ Rules:
   pitch maps to (0.25, −0.054, 0.618) m.
 - The upside-down lidar: in `lidar_link`, y and z point the other way than in
   `base_link`; R_ℬ𝒮 from `asv_frames.yaml` takes care of it.
+- Live view (M2.8): `sim.launch.py rviz:=true` (also through `task1` and
+  `maneuver`) opens RViz with `rviz/asv.rviz`: fixed frame `world`, TF, the
+  clean lidar cloud, the ground-truth odometry and the follower's route.
 
 ## 3. Time
 

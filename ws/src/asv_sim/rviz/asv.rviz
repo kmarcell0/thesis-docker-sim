@@ -1,0 +1,95 @@
+# RViz2 live view (M2.8). Fixed frame world (ENU, Gazebo's frame). Needs the TF
+# tree from sim.launch.py: world -> base_link from ground_truth_tf, sensor
+# frames static. Start with: ros2 launch asv_sim sim.launch.py rviz:=true
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Global Options:
+    Background Color: 48; 48; 48
+    Fixed Frame: world
+    Frame Rate: 30
+  Displays:
+    # 1 m cells in the water plane, 60 m x 60 m around the world origin
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Reference Frame: world
+      Cell Size: 1
+      Plane Cell Count: 60
+      Color: 160; 160; 164
+      Alpha: 0.5
+      Plane: XY
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Names: true
+      Show Axes: true
+      Show Arrows: false
+      Marker Scale: 0.5
+      Frames:
+        All Enabled: true
+    # Clean lidar cloud, stamped in lidar_link; RViz moves it into world with TF
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Lidar (clean)
+      Enabled: true
+      Topic:
+        Value: /asv/lidar/points
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Style: Points
+      Size (Pixels): 3
+      Color Transformer: AxisColor
+      Axis: Z
+      Use Fixed Frame: true
+      Decay Time: 0
+    - Class: rviz_default_plugins/Odometry
+      Name: Ground truth
+      Enabled: true
+      Topic:
+        Value: /asv/ground_truth/odom
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Keep: 1
+      Shape:
+        Value: Arrow
+        Shaft Length: 1
+        Shaft Radius: 0.05
+        Head Length: 0.3
+        Head Radius: 0.1
+        Color: 255; 25; 0
+      Covariance:
+        Value: false
+    # Waypoint follower's route (latched: transient local), only when it runs
+    - Class: rviz_default_plugins/Path
+      Name: Route
+      Enabled: true
+      Topic:
+        Value: /asv/autonomy/path
+        Depth: 1
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+      Line Style: Lines
+      Color: 25; 255; 0
+      Pose Style: None
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: Current View
+      Target Frame: world
+      X: 10
+      Y: 0
+      Scale: 20
+      Angle: 0

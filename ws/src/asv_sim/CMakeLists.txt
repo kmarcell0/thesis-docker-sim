@@ -101,11 +101,27 @@ target_link_libraries(buoy_map_publisher
   ament_index_cpp::ament_index_cpp
   ${asv_msgs_TARGETS}
 )
+# Ground-truth TF (M2.8): odometry -> TF world -> base_link. The glue is its
+# own library (ROS messages, no node), so it is unit tested.
+find_package(tf2_ros REQUIRED)
+add_library(asv_sim_tf src/ground_truth_tf.cpp)
+target_include_directories(asv_sim_tf PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(asv_sim_tf PUBLIC ${nav_msgs_TARGETS} ${geometry_msgs_TARGETS})
+add_executable(ground_truth_tf src/ground_truth_tf_node.cpp)
+target_link_libraries(ground_truth_tf
+  asv_sim_tf
+  rclcpp::rclcpp
+  tf2_ros::tf2_ros
+)
 install(TARGETS waypoint_follower maneuver_player teleop corruptor buoy_map_publisher
+  ground_truth_tf
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/ DESTINATION include)
-install(TARGETS asv_sim_guidance asv_sim_corruptor asv_sim_buoy_map
+install(TARGETS asv_sim_guidance asv_sim_corruptor asv_sim_buoy_map asv_sim_tf
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -115,6 +131,7 @@ install(DIRECTORY
   config
   launch
   models
+  rviz
   worlds
   DESTINATION share/${PROJECT_NAME}
 )
@@ -163,6 +180,9 @@ if(BUILD_TESTING)
   target_link_libraries(test_buoy_map asv_sim_buoy_map)
   target_compile_definitions(test_buoy_map PRIVATE
     ASV_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
+  # Ground-truth TF glue (M2.8).
+  ament_add_gtest(test_ground_truth_tf test/test_ground_truth_tf.cpp)
+  target_link_libraries(test_ground_truth_tf asv_sim_tf)
 endif()
 
 ament_package()

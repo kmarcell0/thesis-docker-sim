@@ -1395,6 +1395,177 @@ with the lidar cloud in the world frame.
 Marcell checks RViz.
 **Decisions needed:** none.
 
+### Brief (agreed on 2026-11-03)
+
+Marcell first asked whether the live view is needed before the thesis
+(2026-11-03); options: skip to M7, TF only, keep. He chose: keep as briefed.
+Choices A a and B a taken as recommended.
+
+```
+M0 🟩🟩🟩🟩🟩 │ M1 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 │ M2 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟨⬜ │ M3 ⬜⬜⬜⬜⬜⬜⬜⬜⬜ │ M4 ⬜ │ M6 ⬜⬜⬜
+30 of 45 steps done: 67% completed!
+```
+
+#### Summary (in plain words)
+ROS keeps a "family tree" of coordinate frames (TF): which frame sits where relative
+to which. Today the tree has two disconnected pieces: `base_link` with its sensors
+(static, from `asv_frames.yaml`), and nothing that says where `base_link` is in
+`world`. So RViz cannot draw a lidar point "in the world", and nothing connects
+`map` (the filter's frame) to `world`. This step adds the two missing links:
+`world → map` (identity: same origin, same axes) and `world → base_link` taken from
+ground-truth odometry, 50 times per second. Then one RViz config shows the lidar
+cloud, the true boat pose and the follower's route in the world frame. Nothing in the
+corruptor, follower or sensor data changes; this is only for viewing and for later
+steps (fake detector M3.1, slam_node M4.1) that need the tree.
+
+#### 1. Goal
+One connected TF tree (world → map, world → base_link → sensors) and an RViz config
+that shows the lidar cloud in the world frame.
+
+#### 2. Decisions needed
+No open D-number. Two layout choices, taken as recommended unless Marcell says otherwise:
+- **A. Who publishes world → base_link:** (a, rec.) our own small C++ node
+  `ground_truth_tf` (odom → TF, copies stamp and frame names), can be switched off
+  with a launch argument so slam_node can take over in M4.1; (b) bridge Gazebo's
+  OdometryPublisher TF topic (`/asv/ground_truth/pose_v`) onto `/tf`: no code, but
+  the model comment says "topic only, NOT TF" on purpose, it can't be unit tested
+  and switching it off means editing the bridge config (generator).
+- **B. How RViz starts:** (a, rec.) launch argument `rviz:=false|true` in
+  `sim.launch.py` (default false, so headless runs and my runs don't open windows);
+  (b) a separate `rviz.launch.py`.
+
+#### 3. Why
+- Thesis: Coordinate Frames and Transformations (world/map/base_link/sensor frames);
+  Ground Truth and Data Recording (truth pose also as TF).
+- M3.1 fake detector and M5 perception need sensor poses in world; M4.1 slam_node
+  publishes map → base_link and needs `map` hanging under `world`.
+- Rule from design.md §2: base_link has exactly one parent → only one of
+  ground_truth_tf / slam_node may run; the launch argument enforces that.
+
+#### 4. New ideas
+- **TF tree:** frames as a tree; each edge is a transform published by one node;
+  any two frames in one tree can be related. (glossary "Frame, TF, TF tree")
+- **Static vs dynamic transforms:** static ones (world→map, sensor mounts) are sent
+  once, latched on `/tf_static`; dynamic ones (world→base_link) are stamped and
+  streamed on `/tf`; a lookup at time t interpolates between stamps.
+
+#### 5. What will change
+- `ws/src/asv_sim/include/asv_sim/ground_truth_tf.hpp` + `src/ground_truth_tf.cpp`:
+  `transform_from_odometry(const nav_msgs::msg::Odometry&)` → TransformStamped
+  (message glue, testable without a running ROS graph).
+- `ws/src/asv_sim/src/ground_truth_tf_node.cpp`: node, I/O only: subscribe
+  `/asv/ground_truth/odom`, broadcast on `/tf`.
+- `ws/src/asv_sim/test/test_ground_truth_tf.cpp`: gtest.
+- `ws/src/asv_sim/CMakeLists.txt`: library source, node, test, install `rviz/`.
+- ⚠ `ws/src/asv_sim/package.xml`: `tf2_ros` from `exec_depend` to `depend`;
+  new `exec_depend rviz2` (both already installed in the container).
+- `ws/src/asv_sim/launch/sim.launch.py`: static world → map identity; node
+  `ground_truth_tf` (arg `ground_truth_tf:=true|false`, default true); RViz (arg
+  `rviz:=false|true`).
+- `ws/src/asv_sim/rviz/asv.rviz`: fixed frame `world`; Grid, TF, PointCloud2
+  `/asv/lidar/points`, Odometry `/asv/ground_truth/odom`, Path `/asv/autonomy/path`.
+- `ws/src/asv_sim/tests/test_rviz_config.py`: config parses; fixed frame `world`;
+  lidar topic present.
+- Docs: design.md §2 (who publishes, launch args), §1 topic table (`/tf`,
+  `/tf_static`), glossary if a term is missing, CLAUDE.md Known state + Layout +
+  test baseline, master plan mark, m2_plan brief + report.
+
+#### 6. How it works
+- Odometry pose = T_𝒲ℬ (pose of base_link in world): position p, orientation q.
+  TF edge world → base_link carries exactly that: translation = p, rotation = q,
+  header.stamp = odom stamp, frame_id = odom.header.frame_id (`world`),
+  child_frame_id = odom.child_frame_id (`base_link`). Twist is ignored.
+- A lidar point: p_𝒲 = T_𝒲ℬ · T_ℬ𝒮 · p_𝒮 (T_ℬ𝒮 static from asv_frames.yaml; RViz
+  composes this itself).
+```
+world ──(static, identity)──> map            (M4.1: map → base_link instead of the line below)
+  └──(ground_truth_tf, 50 Hz)──> base_link ──(static)──> lidar_link, imu_link, gnss_*, zed_*, cam_*
+```
+
+#### 7. How we will check it
+- gtest `test_ground_truth_tf`: values, stamp and frame names copied; twist not used.
+- Python test for the RViz file.
+- Build; `colcon test` asv_sim (expect 129 + new) and asv_core (57 unchanged);
+  Python unittest (124 + new).
+- Headless run: `ros2 run tf2_tools view_frames` → one tree, root `world`, 12 frames
+  (world, map, base_link + 9 sensor frames); `ros2 run tf2_ros tf2_echo world base_link`
+  equals the odom pose at the same moment (within one 20 ms odom period of motion;
+  boat idle → equal to < 1 mm); `tf2_echo world lidar_link` z ≈ base_link z + 0.62 m;
+  `ros2 topic hz /tf` ≈ 50 Hz sim time.
+- `ground_truth_tf:=false` → view_frames shows base_link not connected to world.
+
+#### 8. What I can't check
+- The RViz window: Marcell runs `ros2 launch asv_sim sim.launch.py rviz:=true`
+  (or task1 with it) and checks that the lidar points of the buoys sit where the
+  buoys are and stay put while the boat moves (if TF were wrong they would move
+  with the boat).
+
+### Report (2026-11-03)
+
+**What changed**
+- `asv_sim/include/asv_sim/ground_truth_tf.hpp`, `src/ground_truth_tf.cpp`:
+  `transform_from_odometry()`: odometry pose → TransformStamped, stamp and
+  frame names copied, twist ignored (library `asv_sim_tf`).
+- `src/ground_truth_tf_node.cpp`: node `ground_truth_tf`, I/O only:
+  `/asv/ground_truth/odom` in, `/tf` (world → base_link) out.
+- `test/test_ground_truth_tf.cpp`: 4 gtests (stamp/frames, exact pose copy,
+  twist not used, other frame names pass through).
+- `launch/sim.launch.py`: static world → map (`static_tf_map`), node
+  `ground_truth_tf` (arg `ground_truth_tf`, default true), RViz (arg `rviz`,
+  default false); helper `_is_true()` also used for `corruptor`.
+- `rviz/asv.rviz`: fixed frame world; Grid (1 m), TF, PointCloud2
+  `/asv/lidar/points`, Odometry `/asv/ground_truth/odom`, Path
+  `/asv/autonomy/path` (transient local); top-down view.
+- `tests/test_rviz_config.py`: 5 tests (fixed frame, lidar topic, TF display,
+  every topic bridged or ours, route subscribed transient local).
+- `CMakeLists.txt` (library, node, test, install `rviz/`); ⚠ `package.xml`
+  (`tf2_ros` → `depend`, `exec_depend rviz2`).
+- Docs: `design.md` §1 (`/tf`, `/tf_static` rows), §2 (who publishes, launch
+  args, live view); glossary (static vs dynamic transform); CLAUDE.md.
+
+**How it was checked**
+- `colcon test --packages-select asv_core asv_sim`, `colcon test-result`:
+  `Summary: 208 tests, 0 errors, 0 failures, 0 skipped` (asv_core 57 gtests,
+  asv_sim 133 = 129 + 4; 62 + 146 with the CTest wrappers).
+- `python3 -m unittest discover -s tests`: `Ran 129 tests ... OK` (124 + 5).
+- Headless `sim.launch.py`, `ros2 run tf2_tools view_frames`: one tree, root
+  `world`, 12 frames; edges world → map, world → base_link, base_link → 6
+  sensor/mount frames, zed_link → 2 optical, cam_wide_front_link → optical;
+  base_link rate 50.216 Hz.
+- rclpy check (TF buffer lookup at each odometry stamp, 120 stamps): position
+  difference 0.000 m, largest quaternion component difference 1.1e-16.
+  world → map = (0, 0, 0), q = (0, 0, 0, 1).
+- `lidar_link` z − `base_link` z = 0.6209 m (0.62 m mount; the extra ~1 mm is
+  the boat's small pitch/roll at rest acting on the 0.25 m forward offset).
+- `ros2 topic hz /tf --use-sim-time`: average 50.000 Hz.
+- `task1.launch.py gui:=false ground_truth_tf:=false`: no `ground_truth_tf`
+  node; view_frames has no world → base_link edge (base_link cut off), so the
+  argument reaches the included `sim.launch.py`.
+
+**What could not be checked**
+- The RViz window. Marcell: `ros2 launch asv_sim task1.launch.py rviz:=true`
+  (in `docker compose exec sim bash`); the lidar points on the buoys sit on
+  the buoys and stay still in the world while the boat moves and turns; the
+  green route line runs through the gates; the TF axes ride on the boat.
+
+**How to read the code**
+- Start at `ground_truth_tf.hpp` (T_𝒲ℬ: odometry pose = transform world →
+  base_link), then `ground_truth_tf_node.cpp` (subscribe, convert, send).
+- `sim.launch.py` sections 3 (static TF incl. world → map), 3b (ground-truth
+  TF), 6 (RViz).
+- p_𝒲 = T_𝒲ℬ · T_ℬ𝒮 · p_𝒮 is composed by tf2 / RViz, not by our code.
+
+**Numbers for the thesis**
+- world → base_link at 50 Hz [MEASURED M2.8] (= odometry rate, 50 Hz [REPO]).
+- Lidar mount 0.62 m above base_link [REPO `asv_frames.yaml`].
+
+**Check your understanding**
+1. Why may `ground_truth_tf` and slam_node not run at the same time, and what
+   would RViz show if they did?
+2. If world → base_link were wrong by a constant yaw, how would the buoys'
+   lidar points look in RViz while the boat turns?
+3. Why is world → map static, but world → base_link sent 50 times a second?
+
 ---
 
 ## M2.9 Recording profiles

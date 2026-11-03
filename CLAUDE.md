@@ -188,15 +188,16 @@ raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M2.7): 124 Python tests, run with `unittest`; `colcon test`
+  Current baseline (M2.8): 129 Python tests, run with `unittest`; `colcon test`
   for `asv_core` runs 57 gtests (`test_angles` 6, `test_geodesy` 7,
   `test_noise` 19, about 20 s, `test_imu_corruptor` 8,
   `test_gnss_corruptor` 17) and for
-  `asv_sim` 129 (`test_mix` 9, `test_guidance` 15, `test_control` 27,
+  `asv_sim` 133 (`test_mix` 9, `test_guidance` 15, `test_control` 27,
   `test_gate_monitor` 15, `test_follower` 11, `test_closed_loop` 7,
   `test_maneuver` 8, `test_maneuver_files` 3, `test_teleop` 9,
-  `test_imu_corruption` 7, `test_gnss_corruption` 12, `test_buoy_map` 6);
-  `colcon test-result` counts 62 + 141 = 203, the extra seventeen are CTest's
+  `test_imu_corruption` 7, `test_gnss_corruption` 12, `test_buoy_map` 6,
+  `test_ground_truth_tf` 4);
+  `colcon test-result` counts 62 + 146 = 208, the extra eighteen are CTest's
   wrappers, one per gtest binary.
   Report both numbers after every step.
 - **Python 3** for tools, launch files and offline analysis.
@@ -452,6 +453,18 @@ Update this section in the same commit as the step that changes it.
   idle (`tools/measure_buoy_drift.py`): none horizontally (≤ 1.3e-14 m),
   heave ≤ 3.4 cm. `task1_route.yaml` still types its buoys by hand; a test
   checks they agree with the map within 1 mm.
+- **TF tree and live view (M2.8):** one tree, root `world`: static
+  world → map (identity, node `static_tf_map`), world → base_link from node
+  `ground_truth_tf` (`src/ground_truth_tf_node.cpp`, I/O only; glue
+  `transform_from_odometry()` in `ground_truth_tf.hpp`, library `asv_sim_tf`;
+  copies pose, stamp and frame names of `/asv/ground_truth/odom`, 50 Hz),
+  sensor frames static from `asv_frames.yaml`. `sim.launch.py` arguments
+  `ground_truth_tf:=true|false` (default true; false for slam_node, M4.1,
+  since base_link may have only one parent) and `rviz:=false|true` (default
+  false; `rviz/asv.rviz`, fixed frame world: TF, clean lidar cloud,
+  ground-truth odometry, follower route); both reach `sim.launch.py` through
+  task1 and maneuver. Live check: TF equals the odometry at its stamps
+  (position diff 0, quaternion ≤ 1.1e-16).
 - **`asv_msgs` (M2.4):** interface package (rosidl, depends on `std_msgs`
   only): `BuoyColour`, `BuoyDetection(Array)`, `Landmark(Array)`,
   `GnssHeading`, `GnssStatus` (was planned as SensorStatus; renamed, M2.4 B b);
@@ -502,12 +515,13 @@ ws/                       colcon workspace, mounted in the container at /ws
                           tools/make_roboboat2026_course.py; static since M2.7)
     config/buoys_gt.yaml  GENERATED true buoy map (tools/make_buoy_map.py, M2.7)
     worlds/               roboboat_course.sdf (course + boat), course.sdf
-    include/asv_sim/      ROS-free C++ (mix(), Route, LOS, control, gates, Follower, Maneuver, teleop keys) (from M1.2); imu_corruption.hpp, gnss_corruption.hpp (message glue, M2.6a/b/c); buoy_map.hpp (M2.7)
-    src/                  C++ library sources (mix, guidance, control, gate monitor, follower, maneuver, teleop, imu_corruption, gnss_corruption, buoy_map); nodes waypoint_follower, maneuver_player, teleop, corruptor, buoy_map_publisher
+    include/asv_sim/      ROS-free C++ (mix(), Route, LOS, control, gates, Follower, Maneuver, teleop keys) (from M1.2); imu_corruption.hpp, gnss_corruption.hpp (message glue, M2.6a/b/c); buoy_map.hpp (M2.7); ground_truth_tf.hpp (M2.8)
+    src/                  C++ library sources (mix, guidance, control, gate monitor, follower, maneuver, teleop, imu_corruption, gnss_corruption, buoy_map, ground_truth_tf); nodes waypoint_follower, maneuver_player, teleop, corruptor, buoy_map_publisher, ground_truth_tf
     test/                 gtests for the C++ code                       (from M1.2)
     tools/                Python tools: make_asv.py (generator), studies, analysis, check_corruptor.py (M2.6d), make_buoy_map.py and measure_buoy_drift.py (M2.7)
     tests/                Python tests of the generator and tools
-    launch/               sim.launch.py (Gazebo + bridge + static TF + corruptor + buoy map), task launch files
+    launch/               sim.launch.py (Gazebo + bridge + static TF + ground-truth TF + corruptor + buoy map [+ RViz]), task launch files
+    rviz/                 asv.rviz: live view, fixed frame world (M2.8)
     docs/                 HOW_IT_WORKS.md (generator), milestone1_plan.md
   src/asv_core/           ROS-free maths (D13 a): angles, geodesy (from M2.1), noise (M2.5), IMU corruptor (M2.6a), GNSS corruptor (M2.6b, M2.6c); gtests in test/
   src/asv_msgs/           message types (from M2.4)
