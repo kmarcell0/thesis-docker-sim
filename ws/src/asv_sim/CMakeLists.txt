@@ -86,10 +86,26 @@ target_link_libraries(corruptor
   rclcpp::rclcpp
   ament_index_cpp::ament_index_cpp
 )
-install(TARGETS waypoint_follower maneuver_player teleop corruptor DESTINATION lib/${PROJECT_NAME})
+# True buoy map (M2.7): ROS-free loader of config/buoys_gt.yaml, and the node
+# that publishes it once on a latched topic (asv_msgs/LandmarkArray).
+add_library(asv_sim_buoy_map src/buoy_map.cpp)
+target_include_directories(asv_sim_buoy_map PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(asv_sim_buoy_map PUBLIC yaml-cpp::yaml-cpp)
+add_executable(buoy_map_publisher src/buoy_map_publisher.cpp)
+target_link_libraries(buoy_map_publisher
+  asv_sim_buoy_map
+  rclcpp::rclcpp
+  ament_index_cpp::ament_index_cpp
+  ${asv_msgs_TARGETS}
+)
+install(TARGETS waypoint_follower maneuver_player teleop corruptor buoy_map_publisher
+  DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/ DESTINATION include)
-install(TARGETS asv_sim_guidance asv_sim_corruptor
+install(TARGETS asv_sim_guidance asv_sim_corruptor asv_sim_buoy_map
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -141,6 +157,11 @@ if(BUILD_TESTING)
   ament_add_gtest(test_gnss_corruption test/test_gnss_corruption.cpp)
   target_link_libraries(test_gnss_corruption asv_sim_corruptor)
   target_compile_definitions(test_gnss_corruption PRIVATE
+    ASV_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
+  # True buoy map (M2.7): reads config/buoys_gt.yaml in the source tree.
+  ament_add_gtest(test_buoy_map test/test_buoy_map.cpp)
+  target_link_libraries(test_buoy_map asv_sim_buoy_map)
+  target_compile_definitions(test_buoy_map PRIVATE
     ASV_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
 endif()
 

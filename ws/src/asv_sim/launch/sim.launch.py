@@ -1,5 +1,6 @@
-"""Launch Gazebo Harmonic sim with ros_gz_bridge, static TF publishers and
-the corruptor (realistic sensor data under /asv/sensors/..., M2.6d).
+"""Launch Gazebo Harmonic sim with ros_gz_bridge, static TF publishers,
+the corruptor (realistic sensor data under /asv/sensors/..., M2.6d) and the
+true buoy map publisher (/asv/ground_truth/buoys, latched, M2.7).
 
 Usage (from host):
   docker compose exec -T sim bash -ic \
@@ -114,6 +115,17 @@ def _launch_setup(context, *args, **kwargs):
                 output='screen',
             )
         )
+
+    # ── 5. True buoy map, once, latched (M2.7, D7 a) ──
+    # Reads config/buoys_gt.yaml itself (buoy_map_publisher.cpp).
+    actions.append(
+        Node(
+            package='asv_sim',
+            executable='buoy_map_publisher',
+            name='buoy_map_publisher',
+            output='screen',
+        )
+    )
 
     return actions
 

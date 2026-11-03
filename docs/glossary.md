@@ -28,7 +28,7 @@ proposes, Marcell decides, and then this table is updated.
 | N | number of landmarks (buoys) in the map | | draft, eq. 3.4-3.6 |
 | ξ | full filter state: pose, gyro bias b_g and buoys (D5 C) | | decided notation (2026-10-14 tables) |
 | r | range to a buoy | m | draft (Planar Motion) |
-| r_b | buoy radius | m | draft (Static Landmarks) |
+| r_b | buoy radius: the largest horizontal radius of the body (D20 a) | m | draft (Static Landmarks) |
 | β | bearing to a buoy, counter-clockwise from the bow | rad | proposed |
 | u, v | surge and sway speed (forward and sideways, boat frame) | m/s | proposed |
 | ω | yaw rate (turn rate) | rad/s | proposed (r is already the range) |
@@ -474,9 +474,11 @@ measured value is said to "match" the configured one when it is within three
 standard errors (about a 1 in 370 chance of failing by bad luck, for one
 value).
 
-**Static / floating model.** In Gazebo a *static* model never moves. Our buoys
-are currently *floating*: they bob on the waves and can be pushed. Neither is a
-moored buoy (one that moves in a small circle around its anchor).
+**Static / floating model.** In Gazebo a *static* model never moves. Since
+M2.7 the buoys and vessels of the course are static (D7 a, D19 a), so their file
+positions are the truth (`config/buoys_gt.yaml`); before, they were *floating*:
+they bobbed on the waves and could be pushed. Neither is a moored buoy (one that
+moves in a small circle around its anchor).
 
 **State machine.** A fixed set of states (e.g. WAITING, RUNNING, FINISHED,
 STOPPED) and the rules for moving between them. At any time the system is in

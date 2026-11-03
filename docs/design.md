@@ -47,7 +47,7 @@ publish-time stamps [SRC AP_DDS], so the real boat needs a small converter node
 |---|---|---|---|---|
 | `/clock` | rosgraph_msgs/Clock | every physics step | bridge | time |
 | `/asv/ground_truth/odom` | nav_msgs/Odometry | 50 Hz [REPO] | bridge (Gazebo OdometryPublisher) | ground truth |
-| `/asv/ground_truth/buoys` | asv_msgs/LandmarkArray (latched) | once | ground-truth tool (M2.7) | ground truth |
+| `/asv/ground_truth/buoys` | asv_msgs/LandmarkArray (latched) | once | `buoy_map_publisher` (M2.7) | ground truth |
 | `/asv/ground_truth/gnss_status` | asv_msgs/GnssStatus | 10 Hz | corruptor (M2.6b) | ground truth (true fix mode, outage flag); every clean epoch, also in an outage |
 | `/asv/ground_truth/gnss_error` | geometry_msgs/Vector3Stamped (frame `world`, ENU, m) | 10 Hz | corruptor (M2.6b) | ground truth: the true slow GNSS error β_G in the fix with the same stamp; nothing in an outage |
 | `/asv/ground_truth/imu_bias` | sensor_msgs/Imu | 200 Hz | corruptor (M2.6a) | ground truth: true total IMU bias b0 + b(k), gyro in angular_velocity, accelerometer in linear_acceleration; same stamp as the corrupted sample |
@@ -714,8 +714,16 @@ Checked facts (gz-sensors / gz-sim source code and the repository):
   finite differences.
 - The IMU's samples land on 4 ms physics steps (intervals 8, 4, 4, 4 ms).
 - The lidar can't see the VRX water (`visibility_mask 7`).
-- All buoys and vessels in the course float freely (buoyancy plugin, no mooring);
-  only the dock parts are static.
+- Since M2.7 every buoy and vessel of the course is static (D7 a, D19 a); the
+  true map is `config/buoys_gt.yaml` (`tools/make_buoy_map.py`), published latched
+  on `/asv/ground_truth/buoys`. Before, they floated freely (buoyancy plugin, no
+  mooring). Drift of the floating course (`make_roboboat2026_course.py
+  --floating`, boat idle, waves gain 0.1, period 4 s, steepness 0; 305.7 s,
+  `tools/measure_buoy_drift.py`) [MEASURED]: horizontal ≤ 1.3e-14 m (none),
+  vertical ≤ 3.4 cm (heave). With steepness 0 every force on an untouched buoy
+  is vertical; contact (the boat) or steeper waves would move them. Gazebo puts
+  this motion in the nested models' poses (relative to their parent), the links
+  stay at the model origin.
 - The pod steering angle follows commands at no more than 2 rad/s, and the actual
   angle is not published to ROS.
 

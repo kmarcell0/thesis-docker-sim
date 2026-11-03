@@ -1218,6 +1218,172 @@ drift of floating buoys (largest movement per buoy in 5 min) written down.
 - ⚠ Course generator change (`make_roboboat2026_course.py`).
 - Marcell checks in the Gazebo window that static buoys sit at the waterline.
 
+### Brief (agreed on 2026-11-03)
+
+```
+M0 🟩🟩🟩🟩🟩 │ M1 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 │ M2 🟩🟩🟩🟩🟩🟩🟩🟩🟨⬜⬜ │ M3 ⬜⬜⬜⬜⬜⬜⬜⬜⬜ │ M4 ⬜ │ M6 ⬜⬜⬜
+29 of 45 steps done: 64% completed!
+```
+
+#### Context
+Fake detector (M3.1) and evaluation (M3.6) need the true buoy positions. D7 a
+(decided 2026-10-11): buoys made static, positions read from the course files.
+Today every buoy and vessel floats freely (design.md §13), so its true position
+is not known after a few seconds.
+
+#### Summary (plain words)
+Write a list of every buoy in the course: name, colour, class, size, and its
+exact x/y in the world. A small Python tool computes it from the files that
+place the buoys (task pose in the world file + buoy pose inside the task
+model). The buoys are then nailed in place (static) so the list stays true for
+the whole run. A small node publishes the list once on a "latched" topic, so a
+node that starts later still gets it. Before nailing them down, one 5-minute
+run with the floating buoys measures how far they wander: the number goes into
+the thesis limitations. The boat, sensors and filter don't change.
+
+#### Decisions (new D19, D20): decided a and a, 2026-11-03
+
+- **D19 — what goes into the map and becomes static.**
+  a) (recommended) all floating course objects: Sur-Marks, A-0, A-2, indicator
+     buoys (class `indicator`), vessels (class `other`, colour yellow/black).
+     design.md §5 already says the detector reports vessels as "other", so it
+     needs their positions. 27 buoys + 5 vessels = 32 entries.
+  b) only Sur-Marks, A-0, A-2 static and listed (23 buoys); indicators and
+     vessels keep floating and are not in the map.
+- **D20 — meaning of `radius`.**
+  a) (recommended) largest horizontal radius of the body: A-0 0.1015, A-2 0.184,
+     Sur-Mark 0.2286 m (same as task1_route.yaml today); non-round objects:
+     circumscribed circle (indicator 0.323, vessel 0.65 m). Fix the comment in
+     `Landmark.msg` ("at the waterline" → "largest horizontal").
+  b) radius where the water cuts the body: A-0 0.0878, A-2 0.1388 m (spheres sit
+     with their equator above water); lidar hits mostly above water, so smaller
+     than what it sees.
+
+#### What will change
+- new `tools/make_buoy_map.py`: reads `worlds/roboboat_course.sdf` + generated
+  `models/rb26_task*/model.sdf` + element model geometry; composes 2D poses
+  (x, y, yaw); writes `config/buoys_gt.yaml` (generated, committed; scoped names
+  like `task1_entry_exit::gate1_red_port`, id = index).
+- new `tools/measure_buoy_drift.py`: reads Gazebo's pose topic
+  (`/world/roboboat_course/pose/info`, gz CLI; to be confirmed it lists nested
+  models) at start and after 300 s sim time; largest movement per object.
+- ⚠ `tools/make_roboboat2026_course.py`: `static=True` on buoy (and with D19 a,
+  vessel) includes; regenerate `models/rb26_task{1,2,3,5}*/model.sdf`.
+- new `include/asv_sim/buoy_map.hpp`, `src/buoy_map.cpp` (ROS-free YAML loader,
+  yaml-cpp already a dependency), node `src/buoy_map_publisher.cpp` (I/O only,
+  `/asv/ground_truth/buoys`, asv_msgs/LandmarkArray, QoS transient_local +
+  reliable, depth 1, published once after the first nonzero clock).
+- `CMakeLists.txt` (new lib source, node, gtest), `launch/sim.launch.py` (start
+  the node, `use_sim_time`).
+- tests: `tests/test_make_buoy_map.py`, `test/test_buoy_map.cpp`.
+- D20 a: `asv_msgs/msg/Landmark.msg` comment.
+- docs: design.md §13 (buoys static now), master_plan D19/D20 + mark,
+  m2_plan brief/report, CLAUDE.md Known state + layout, glossary ("latched /
+  transient local", "static model").
+
+#### How it works
+world pose of a buoy = task pose ∘ local pose (planar):
+x_w = x_T + cos ψ_T · x_l − sin ψ_T · y_l
+y_w = y_T + sin ψ_T · x_l + cos ψ_T · y_l
+(ψ_T = task yaw; Task 2 is rotated by 1.5708 rad.)
+Colour and class come from the element model name (`rb26_a2_yellow` → A-2,
+yellow); radius from that model's collision geometry.
+
+#### Build order
+1. `make_buoy_map.py` + Python tests (on the current files).
+2. Drift run with the CURRENT floating buoys: headless sim, boat idle, 300 s sim
+   time; `measure_buoy_drift.py` → table (largest movement per object).
+3. Generator change, regenerate, check `git diff` adds only `<static>` tags.
+4. C++ loader + gtest, node, launch.
+5. Live check of the latched topic; sim log free of buoyancy-plugin errors.
+
+#### How we will check it
+- Python: gate 1 red = (5.0, 1.524) m (±1e-9); Task 2 rotation example
+  ch_gate1_red ≈ (20.781, 6.000); every buoy include in regenerated rb26_task*
+  has `<static>true</static>`; committed yaml == freshly generated; task1_route
+  `buoy_coords` agree with the map within 1 mm.
+- gtest `test_buoy_map`: loads the yaml, count, gate 1 red, bad colour throws.
+- Live: `ros2 topic echo --once --qos-durability transient_local
+  /asv/ground_truth/buoys` started AFTER the sim → 32 (or 23) landmarks.
+- Report Python and colcon test counts (baseline 107 / 57 + 123).
+
+#### What I can't check
+Marcell, in the Gazebo window: static buoys sit at the waterline (not floating
+above / sunk), look the same as before.
+
+### Report (2026-11-03)
+
+**What changed**
+- `tools/make_buoy_map.py` (new): world task pose ∘ local pose → `config/buoys_gt.yaml`
+  (generated, committed): 32 objects, class/colour from the element model name,
+  radius from its collision shapes (D20 a).
+- `config/buoys_gt.yaml` (new, generated).
+- `tools/make_roboboat2026_course.py` ⚠: every object in a task model is static
+  (`STATIC_OBJECTS`); `--floating` restores the old course for drift runs.
+- `models/rb26_task{1,2,3,5}*/model.sdf`: regenerated; the diff only adds
+  `<static>true</static>` to 32 includes; no element model changed.
+- `tools/measure_buoy_drift.py` (new): reads `/world/roboboat_course/pose/info`
+  twice, composes nested poses, prints drift per object; checks links stay at
+  their model origin.
+- `include/asv_sim/buoy_map.hpp`, `src/buoy_map.cpp` (new, ROS-free):
+  `parse_buoy_map()`, `colour_code()`; library `asv_sim_buoy_map`.
+- `src/buoy_map_publisher.cpp` (new node, I/O only): `/asv/ground_truth/buoys`,
+  LandmarkArray, transient_local + reliable, depth 1, once at the first nonzero
+  sim time.
+- `launch/sim.launch.py`: starts `buoy_map_publisher`. `CMakeLists.txt`: library,
+  node, gtest.
+- `asv_msgs/msg/Landmark.msg`: comments of `name`, `model` (classes incl.
+  indicator, other), `radius` (D20 a). No field changed.
+- Tests (new): `tests/test_make_buoy_map.py` (13), `tests/test_measure_buoy_drift.py`
+  (4), `test/test_buoy_map.cpp` (6).
+- Docs: master_plan D19, D20, mark; design.md §1 row, §13; glossary (static model,
+  r_b); CLAUDE.md known state, baseline, layout.
+
+**How it was checked**
+- `python3 -m unittest discover -s tests` → `Ran 124 tests ... OK` (107 + 17).
+- `colcon test --packages-select asv_core asv_msgs asv_sim` →
+  `Summary: 203 tests, 0 errors, 0 failures, 0 skipped`; asv_core 57 gtests,
+  asv_sim 129 (`test_buoy_map` 6).
+- `make_buoy_map.py` → `32 objects {'Sur-Mark': 4, 'A-0': 14, 'indicator': 4,
+  'other': 5, 'A-2': 5}`; gate 1 red (5.0, 1.524) m; ch_gate1_red
+  (20.781000, 5.999996) m.
+- Diff check: removed lines == added lines with `<static>true</static>` taken out.
+- Drift run (floating, before regeneration; boat idle; sim time 8.680 → 314.380 s):
+  horizontal ≤ 1.28e-14 m for all 32, vertical |Δz| ≤ 0.0340 m
+  (`ws/data/m27_drift/drift.json`). Link poses relative to their model: 0.0 m (41 links).
+- Static run: plugin loads for 32 objects, no error; 37.3 s: horizontal 0.0,
+  vertical 0.0, distance from map ≤ 1.9e-14 m (`static_check.json`).
+- Latched topic: `ros2 topic echo --once --qos-durability transient_local` about
+  30 s after launch → 32 landmarks, stamp 0.100 s, frame `map`, entry 0 =
+  gate1_red_port (5.0, 1.524), colour 1, Sur-Mark, r 0.2286.
+
+**What could not be checked**
+- The Gazebo window: static buoys at the waterline, looking as before. Marcell:
+  `ros2 launch asv_sim sim.launch.py` and look at Task 1 and Task 3.
+- Drift with the boat touching buoys or with steeper waves: not measured.
+- `ros2 topic echo` with default QoS also got the map (Jazzy's CLI adapts to the
+  publisher's durability); a node with default QoS still would not.
+
+**How to read the code**
+- Start at `make_buoy_map.py` `build_map()`: `compose()` is
+  x_w = x_T + cos ψ_T x_l − sin ψ_T y_l, y_w = y_T + sin ψ_T x_l + cos ψ_T y_l;
+  `horizontal_radius()` is D20 a.
+- `buoy_map.cpp` `parse_buoy_map()`: checks; `buoy_map_publisher.cpp`
+  `publish_once()`: map → message.
+- `measure_buoy_drift.py` `world_positions()`: p_world = p_task + R(q_task) p_local.
+
+**Numbers for the thesis**
+- 32 objects: 4 Sur-Mark, 14 A-0, 5 A-2, 4 indicator, 5 vessels [REPO].
+- Radii (D20 a) [REPO]: Sur-Mark 0.2286, A-0 0.1015, A-2 0.184, indicator 0.3233,
+  vessel 0.65 m.
+- Drift of free-floating buoys, 305.7 s, waves gain 0.1, period 4 s, steepness 0,
+  boat idle: horizontal 0 (≤ 1.3e-14 m), heave ≤ 3.4 cm [MEASURED].
+
+**Check your understanding**
+1. Why does Task 2's rotation matter for the map, but not Task 1's?
+2. Why did the floating buoys not move sideways at all, and what would make them?
+3. Why must the topic be "latched", and what must a subscriber do to get it?
+
 ---
 
 ## M2.8 Frames and TF

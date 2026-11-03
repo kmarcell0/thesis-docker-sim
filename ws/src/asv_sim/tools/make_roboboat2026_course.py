@@ -7,7 +7,11 @@ section 3.2 Task Descriptions. Everything marked [EST] is an estimate
 only in the registered-teams Data Sharing folder) - adjust freely.
 
 Run:  python3 make_roboboat2026_course.py   (writes ../models and ../worlds)
+      python3 make_roboboat2026_course.py --floating   (buoys and vessels float,
+      as before M2.7; only to measure their drift, tools/measure_buoy_drift.py)
+After a change, run tools/make_buoy_map.py (true buoy map, M2.7).
 """
+import argparse
 import math
 import os
 
@@ -28,6 +32,11 @@ WHITE = '0.92 0.92 0.92'
 BEIGE = '0.85 0.78 0.62'
 
 WAVEFIELD = '<wavefield><topic>/vrx/wavefield/parameters</topic></wavefield>'
+
+# M2.7 (D7 a, D19 a): every object placed in a task model is static, so its
+# file position is its true position for the whole run (config/buoys_gt.yaml).
+# --floating sets this to False (the course before M2.7).
+STATIC_OBJECTS = True
 
 
 def material(rgb):
@@ -360,7 +369,10 @@ def dock_pier(name, desc):
 # ----------------------------------------------------------------------------
 # Task (group) models: nested includes, so a whole task moves with one pose.
 # ----------------------------------------------------------------------------
-def include(name, uri, x, y, z=0.0, yaw=0.0, static=False):
+def include(name, uri, x, y, z=0.0, yaw=0.0, static=None):
+    """static=None: follow STATIC_OBJECTS; True: always static (dock parts)."""
+    if static is None:
+        static = STATIC_OBJECTS
     s = '<static>true</static>' if static else ''
     return (f'    <include>{s}<name>{name}</name><pose>{x:.3f} {y:.3f} {z:.3f} 0 0 {yaw:.4f}</pose>'
             f'<uri>model://{uri}</uri></include>')
@@ -371,6 +383,11 @@ def write_task(name, lines, desc):
 
 
 def main():
+    global STATIC_OBJECTS
+    ap = argparse.ArgumentParser(description='RoboBoat 2026 course generator')
+    ap.add_argument('--floating', action='store_true',
+                    help='buoys and vessels float (before M2.7); only for the drift run')
+    STATIC_OBJECTS = not ap.parse_args().floating
     # --- element models ----------------------------------------------------
     surmark('rb26_surmark_red', RED, 'Taylor Made Sur-Mark 950410, red (port marker). RoboBoat 2026 Task 1.')
     surmark('rb26_surmark_green', GREEN, 'Taylor Made Sur-Mark 950400, green (starboard marker). RoboBoat 2026 Task 1.')
