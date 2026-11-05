@@ -1,6 +1,6 @@
 # Master plan: GNSS-aided EKF-SLAM in the RoboBoat simulation
 
-Version 1.5, 2026-10-21. Replaces draft v0 (`master-code-plan.md` in the Claude
+Version 1.6, 2026-11-05. Replaces draft v0 (`master-code-plan.md` in the Claude
 project folder). The change log at the end lists what changed.
 
 **How to use this plan**
@@ -141,7 +141,8 @@ depends on an open decision is marked `[?]`.
 Marcell decided most of them on 2026-10-11. Still open: D6 and D10.
 Background and options for these are in
 [`decision_notes.md`](decision_notes.md). D5 was decided C on 2026-10-14, D11
-on 2026-10-21. D6 must be settled before M3.3b; D10 before M3.6.
+on 2026-10-21, D19 and D20 (raised in the M2.7 brief) on 2026-11-03. D6 must
+be settled before M3.3b; D10 before M3.6.
 
 | ID | Question | Options and consequence | Recommended | Decide before | Status | Justified in thesis |
 |---|---|---|---|---|---|---|
@@ -340,16 +341,20 @@ current draft body.
 
 ## 6. Open checks on Marcell's machine
 
-| Check | Blocks | Command or method |
-|---|---|---|
-| Installed packages (OpenCV, cv_bridge, rosbag2_cpp, PCL, yaml-cpp; numpy, scipy, matplotlib) | M3.5, M3.6, M5 | M0.3 |
-| Gazebo's real-time factor when headless | M0.2 check; D10 (how long each recording takes) | read it from the Gazebo log or `gz stats` |
-| Lidar sees no water (the generator hides it: `visibility_mask 7`) | M5.1 (only if time) | one scan over open water has no points near the water surface |
-| How far floating buoys drift during a run | M2.7 | one 5-minute floating run |
+| Check | Blocks | Command or method | Result |
+|---|---|---|---|
+| Installed packages (OpenCV, cv_bridge, rosbag2_cpp, PCL, yaml-cpp; numpy, scipy, matplotlib) | M3.5, M3.6, M5 | M0.3 | done (M0.3, 2026-10-15): all installed except PCL; versions in `design.md` §12 |
+| Gazebo's real-time factor when headless | M0.2 check; D10 (how long each recording takes) | read it from the Gazebo log or `gz stats` | done (M0.2): about 0.85 [MEASURED]; 0.857 with the corruptor (M2.6d); `design.md` §13 |
+| Lidar sees no water (the generator hides it: `visibility_mask 7`) | M5.1 (only if time) | one scan over open water has no points near the water surface | open (only needed for M5) |
+| How far floating buoys drift during a run | M2.7 | one 5-minute floating run | done (M2.7): none horizontally (≤ 1.3e-14 m), heave ≤ 3.4 cm in 305.7 s [MEASURED] |
 
 ---
 
 ## 7. Change log
+
+**v1.6 (2026-11-05).** Housekeeping after M3.1: D19 and D20 (decided
+2026-11-03 in M2.7) named in the §3 intro; §6 open checks get a Result column
+(three of four answered by M0.2, M0.3, M2.7).
 
 **v1.5 (2026-10-21).** M2 milestone plan (`docs/plans/m2_plan.md`). D11
 decided: raw IMU without ArduPilot processing; the processing becomes optional

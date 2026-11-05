@@ -81,16 +81,16 @@ setting. Details: [`docs/design.md`](docs/design.md).
 ## Status
 
 ```
-M0 🟩🟩🟩🟩🟩 │ M1 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 │ M2 ⬜⬜⬜⬜⬜⬜⬜⬜ │ M3 ⬜⬜⬜⬜⬜⬜⬜⬜⬜ │ M4 ⬜ │ M6 ⬜⬜⬜
-19 of 40 steps done: 48% completed!
+M0 🟩🟩🟩🟩🟩 │ M1 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 │ M2 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩 │ M3 🟩⬜⬜⬜⬜⬜⬜⬜⬜ │ M4 ⬜ │ M6 ⬜⬜⬜
+33 of 45 steps done: 73% completed!
 ```
 
 | Milestone | What | State |
 |---|---|---|
 | M0 | Housekeeping: docs, simulation time, toolchain, repository | done |
 | M1 | Drive the course on ground truth (guidance, waypoint follower, teleop) | done: Task 1 (3/3 runs pass), maneuver player, keyboard teleop |
-| M2 | From perfect to realistic sensor data (geodesy, corruptor, buoy map) | planned |
-| M3 | The EKF-SLAM filter, offline (detector, filter, replay, evaluation) | planned |
+| M2 | From perfect to realistic sensor data (geodesy, corruptor, buoy map) | done: Gazebo noise off, corruptor (IMU, GNSS position, velocity, heading, fix modes, outages), true buoy map, TF tree + RViz, recording profiles |
+| M3 | The EKF-SLAM filter, offline (detector, filter, replay, evaluation) | in progress: fake detector done; next the measurement queue |
 | M4 | Live filter and RViz view | planned |
 | M5 | Real lidar + camera perception | optional |
 | M6 | Experiments: noise sweeps, GNSS outages, waves | planned |
@@ -112,7 +112,7 @@ cd thesis-docker-sim            # already cloned? git submodule update --init
 ./setup-env.sh
 docker compose up -d
 
-# 3. Build our package and what it needs (not all of VRX)
+# 3. Build our packages (asv_sim and what it needs: asv_core, asv_msgs; not all of VRX)
 docker compose exec -T sim bash -ic "cd /ws && colcon build --symlink-install --packages-up-to asv_sim"
 
 # 4. Tests (Python, then the C++ gtests)
@@ -129,11 +129,15 @@ docker compose exec -d sim bash -ic "ros2 launch asv_sim task1.launch.py gui:=fa
 docker compose exec -T sim bash -ic "timeout 90 ros2 topic echo /asv/autonomy/status"   # WAITING → RUNNING i/9 → FINISHED
 ```
 
-Record a run and check it (bags go to `ws/data/bags/`; the full topic list is
-in `AUTONOMY.md` §7):
+Record a run with a recording profile and check it (bags go to `ws/data/bags/`;
+profiles `nav` < `nav_lidar` < `perception` in
+[`recording_profiles.yaml`](ws/src/asv_sim/config/recording_profiles.yaml),
+`docs/design.md` §8). Start the recording before the route or maneuver begins:
+status topics only publish on change.
 
 ```bash
-docker compose exec -T sim bash -ic "timeout -s INT 160 ros2 bag record --use-sim-time -o /ws/data/bags/task1_1 --topics /clock /asv/ground_truth/odom /asv/autonomy/status /asv/autonomy/cross_track_error /asv/autonomy/target /asv/thrusters/left/thrust /asv/thrusters/right/thrust"
+docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/record.py --profile nav --name task1_1 --duration 160"
+docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/check_bag_rates.py /ws/data/bags/task1_1 --profile nav"   # counts = rate × duration
 docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/analyze_run.py /ws/data/bags/task1_1"   # metrics.json, trajectory.png
 ```
 
@@ -154,7 +158,9 @@ docker compose exec sim bash
 ros2 run asv_sim teleop --ros-args -p use_sim_time:=true
 ```
 
-Run the simulation:
+Run the simulation. `sim.launch.py` starts Gazebo, the bridge, the static and
+ground-truth TF, the corruptor (`/asv/sensors/...`), the true buoy map
+(`/asv/ground_truth/buoys`) and the fake detector (`/asv/perception/buoys`):
 
 ```bash
 # with the Gazebo window (if it does not open, allow X access on the host: xhost +local:)
@@ -164,9 +170,22 @@ docker compose exec sim bash -ic "ros2 launch asv_sim sim.launch.py"
 docker compose exec -d sim bash -ic "ros2 launch asv_sim sim.launch.py gui:=false > /tmp/sim.log 2>&1"
 docker compose exec -T sim bash -ic "timeout 10 ros2 topic hz /asv/ground_truth/odom"
 
-# stop
-docker compose exec -T sim bash -ic "pkill -f 'ros2 launch'; pkill -f 'gz sim'; pkill -f parameter_bridge"
+# stop (also the static TF publishers and our nodes, so nothing piles up between runs)
+docker compose exec -T sim bash -ic "pkill -f 'ros2 launch'; pkill -f 'gz sim'; pkill -f parameter_bridge; pkill -f static_transform_publisher; pkill -f 'lib/asv_sim/'"
 ```
+
+Launch arguments of `sim.launch.py` (they also work on `task1.launch.py` and
+`maneuver.launch.py`):
+
+| Argument | Default | What it does |
+|---|---|---|
+| `gui:=true\|false` | `true` | Gazebo window |
+| `rviz:=false\|true` | `false` | RViz live view (`rviz/asv.rviz`, fixed frame `world`) |
+| `corruptor:=true\|false` | `true` | realistic sensor data on `/asv/sensors/...` |
+| `noise_profile:=<name>` | `nominal` | `config/noise_profiles/<name>.yaml` (multipliers on `asv.yaml`, GNSS mode schedule, seed) |
+| `fake_detector:=true\|false` | `true` | buoy detections from ground truth on `/asv/perception/buoys` |
+| `detector:=<name>` | `nominal` | `config/detector/<name>.yaml` (range and bearing noise, misses, false alarms, seed) |
+| `ground_truth_tf:=true\|false` | `true` | world → base_link from ground truth (off once the filter publishes it) |
 
 Useful checks with the simulation running:
 
@@ -175,8 +194,20 @@ docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/actuato
 docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/sim_time_check.py"   # timers follow simulation time
 ```
 
+Checks on a recorded bag:
+
+```bash
+# clean GNSS fix = true antenna position (Gazebo noise is off)
+docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/check_clean_gnss.py /ws/data/bags/<bag>"
+# corruptor errors have the configured mean and spread (the bag needs the clean, /asv/sensors/... and ground-truth topics)
+docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/check_corruptor.py /ws/data/bags/<bag> --profile nominal"
+```
+
 After editing `asv.yaml`, regenerate the model:
 `docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/make_asv.py"`.
+After changing the course, regenerate the true buoy map:
+`docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/make_buoy_map.py"`
+(a test fails if `buoys_gt.yaml` is stale).
 
 ## Repository layout
 
@@ -187,24 +218,34 @@ compose.yaml             container setup (GPU, X11, workspace mount)
 setup-env.sh             writes .env for compose.yaml
 ws/                      colcon workspace, mounted at /ws in the container
   src/vrx/               VRX (git submodule, osrf/vrx @ 7609d1b)
-  src/asv_core/          ROS-free maths: angle helpers, geodesy (lat/lon <-> ENU)
+  src/asv_core/          ROS-free maths (Eigen only): angles, geodesy (lat/lon <-> ENU),
+                         noise models, IMU and GNSS corruptor, fake detector; gtests
+  src/asv_msgs/          message types: buoy detections, landmarks, GNSS heading and status
   src/asv_sim/           our simulator package
     config/asv.yaml      boat description (edit this)
-    models/, worlds/     generated boat model, RoboBoat 2026 course
-    include/asv_sim/, src/   ROS-free guidance, control, maneuver and teleop logic
-                         + nodes waypoint_follower, maneuver_player, teleop
-    test/                C++ gtests (incl. a closed-loop run on a 3-DOF model)
-    launch/              sim.launch.py, task1.launch.py, maneuver.launch.py
+    config/asv_*         generated from asv.yaml (bridge, frames, report, layout)
+    config/buoys_gt.yaml generated true buoy map (32 course objects)
+    config/noise_profiles/   corruptor profiles (nominal, mode_check)
+    config/detector/     fake detector settings (nominal)
+    config/recording_profiles.yaml  topic lists for record.py
     config/task1_route.yaml  Task 1 route, gains, buoys
     config/maneuvers/    open-loop maneuver tables (straight, zigzag, circle)
     config/teleop.yaml   teleop key steps
-    tools/               model generator, studies, checks, analyze_run.py, compare_runs.py, geodesy.py
+    models/, worlds/     generated boat model, RoboBoat 2026 course (static buoys)
+    include/asv_sim/, src/   ROS-free guidance, control, maneuver and teleop logic,
+                         message glue; nodes waypoint_follower, maneuver_player, teleop,
+                         corruptor, buoy_map_publisher, ground_truth_tf, fake_detector
+    test/                C++ gtests (incl. a closed-loop run on a 3-DOF model)
+    launch/              sim.launch.py, task1.launch.py, maneuver.launch.py
+    rviz/asv.rviz        live view
+    tools/               model and buoy-map generators, studies, recording, checks,
+                         analyze_run.py, compare_runs.py, geodesy.py
     tests/               Python tests
   data/                  bags, run results, figures (not in git)
 ```
 
-Planned packages (`asv_msgs`, `asv_slam`, `asv_eval`, ...) are
-listed in [`docs/design.md`](docs/design.md) §12.
+Planned packages (`asv_slam`, `asv_eval`, `asv_perception`) are listed in
+[`docs/design.md`](docs/design.md) §12.
 
 ## Documentation
 
@@ -214,7 +255,7 @@ listed in [`docs/design.md`](docs/design.md) §12.
 | [`docs/design.md`](docs/design.md) | Topics, frames, time rules, noise models, filter, evaluation |
 | [`docs/glossary.md`](docs/glossary.md) | Symbols and plain-language terms |
 | [`docs/decision_notes.md`](docs/decision_notes.md) | Background for the decisions still open |
-| [`docs/plans/`](docs/plans/) | Brief and report of every finished step (from M2 on) |
+| [`docs/plans/`](docs/plans/) | Milestone plans with the brief and report of every step (M0, M2 on) |
 | [`docs/reviews/`](docs/reviews/) | External reviews (Gemini) of the plan and the code, checked point by point |
 | [`ws/src/asv_sim/docs/milestone1_plan.md`](ws/src/asv_sim/docs/milestone1_plan.md) | Milestone 1: design history, decisions 10.x, briefs and reports of M1.x |
 | [`ws/src/asv_sim/docs/AUTONOMY.md`](ws/src/asv_sim/docs/AUTONOMY.md) | M1 drivers as built (follower, maneuver player, teleop): equations, parameters, results |

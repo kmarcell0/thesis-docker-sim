@@ -665,8 +665,8 @@ Package names follow D13 a (decided 2026-10-11).
 
 | Package | Kind | Contains | Depends on |
 |---|---|---|---|
-| `asv_core` (new, D13) | ament_cmake, no ROS | geodesy, noise models, fake detector logic, measurement queue, EKF-SLAM, data association, ellipse helper; gtest | Eigen |
-| `asv_msgs` (new) | ament_cmake + rosidl | BuoyDetection(Array), Landmark(Array), GnssHeading, GnssStatus; no roll/pitch message (D11) | |
+| `asv_core` (exists since M2.1, D13) | ament_cmake, no ROS | geodesy, noise models, fake detector logic, measurement queue, EKF-SLAM, data association, ellipse helper; gtest | Eigen |
+| `asv_msgs` (exists since M2.4) | ament_cmake + rosidl | BuoyDetection(Array), Landmark(Array), GnssHeading, GnssStatus; no roll/pitch message (D11) | |
 | `asv_sim` (exists) | ament_cmake | world, models, generator, launch, guidance (M1), follower, player, teleop, corruptor node, fake detector node, ground-truth tools | asv_core, asv_msgs |
 | `asv_perception` (new, only if time: D8) | ament_cmake | lidar clustering, colour classification, fusion | asv_core, asv_msgs |
 | `asv_slam` (new) | ament_cmake | slam_node, slam_replay | asv_core, asv_msgs (not asv_sim) |
@@ -691,10 +691,12 @@ Messages in `asv_msgs` (M2.4; every field commented with unit and frame in
 - `GnssStatus` (ground truth only; named SensorStatus before M2.4 B b): mode
   NO_FIX / STANDALONE / RTK_FLOAT / RTK_FIXED, `sky_view_outage`,
   `corrections_lost`, `heading_available`.
-Contents so far (M2.1): `angles.hpp` (`wrap_angle()`, `yaw_from_quaternion()`,
-moved from `asv_sim`) and `geodesy.hpp` (`GeoPoint`, `LocalTangentPlane`). The
-C++ code takes the reference point as a value; reading it from the world SDF is
-done in Python (`asv_sim/tools/geodesy.py` `read_geo_reference()`).
+`asv_core` contents so far (M3.1): `angles.hpp` (`wrap_angle()`,
+`yaw_from_quaternion()`, moved from `asv_sim`), `geodesy.hpp` (`GeoPoint`,
+`LocalTangentPlane`, M2.1), `noise.hpp` (M2.5), `imu_corruptor.hpp` (M2.6a),
+`gnss_corruptor.hpp` (M2.6b, M2.6c), `fake_detector.hpp` (M3.1). The C++ code
+takes the reference point as a value; reading it from the world SDF is done in
+Python (`asv_sim/tools/geodesy.py` `read_geo_reference()`).
 
 Configuration map:
 
