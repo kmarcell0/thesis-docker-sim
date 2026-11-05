@@ -79,6 +79,8 @@ proposes, Marcell decides, and then this table is updated.
 | L, b_w | boat length (hull length) and half width (hull spacing/2 + hull radius) | m | proposed |
 | d_m | gate margin: required gap between the boat's side and a buoy's surface | m | proposed |
 | X_u, X_uu; n_R, n_RR | linear and quadratic drag in surge and in yaw (`xU`, `xUU`, `nR`, `nRR` in `asv.yaml`) | | proposed |
+| σ_r, σ_β | 1σ of the fake detector's white range and bearing noise (M3.1) | m, rad | proposed |
+| P_miss, λ, p_c | fake detector: probability that a seen buoy is missed, mean number of false alarms per scan (Poisson), probability that a seen colour is swapped for another (M3.1) | none, 1/scan, none | proposed (λ_G is the longitude) |
 
 ---
 
@@ -142,7 +144,10 @@ velocity this way, one epoch late.
 
 **Centroid bias.** The lidar only sees the near side of a buoy, so the centre of
 its points lies closer to the boat than the buoy's real centre, by about π·r_b/4
-for a round buoy of radius r_b.
+for a round buoy of radius r_b. Why π/4: seen from afar, the points are spread
+evenly across the buoy's width w ∈ [−r_b, r_b]; a point at w sits
+√(r_b² − w²) in front of the centre, and the average of that over w is
+π·r_b/4. The fake detector can add it (setting `centroid_bias`, M3.1).
 
 **cgroup, container limits.** Linux groups the processes of a container in a
 *cgroup* and counts their CPU time and memory together. Docker limits use it:
@@ -254,6 +259,13 @@ boat's position.
 
 **Fake detector.** A program that makes buoy measurements directly from ground
 truth plus controlled noise, instead of from lidar and camera data.
+
+**False alarm, miss.** A *false alarm* is a reported detection where there is no
+buoy; a *miss* is a buoy in sensor range that is not reported. The fake
+detector (M3.1) misses each seen buoy with probability P_miss and adds a
+random number of false alarms per scan. That number follows a *Poisson
+distribution* with mean λ: the count of rare, independent events in a fixed
+interval (λ = 0.1 means about one false alarm every ten scans).
 
 **Feedforward.** The part of a control command computed from a model instead of
 from the error: here the thrust the drag model says is needed for the commanded

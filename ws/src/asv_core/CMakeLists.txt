@@ -15,6 +15,7 @@ find_package(Eigen3 REQUIRED)
 # Plain C++, no ROS (D13 a): used by the nodes in asv_sim and later asv_slam.
 add_library(asv_core
   src/angles.cpp
+  src/fake_detector.cpp
   src/geodesy.cpp
   src/gnss_corruptor.cpp
   src/imu_corruptor.cpp
@@ -59,6 +60,10 @@ if(BUILD_TESTING)
   # GNSS position corruptor (M2.6b): 2000-seed spreads.
   ament_add_gtest(test_gnss_corruptor test/test_gnss_corruptor.cpp TIMEOUT 120)
   target_link_libraries(test_gnss_corruptor asv_core)
+
+  # Fake detector (M3.1): rates and moments over 10^5 scans.
+  ament_add_gtest(test_fake_detector test/test_fake_detector.cpp TIMEOUT 120)
+  target_link_libraries(test_fake_detector asv_core)
 endif()
 
 ament_package()

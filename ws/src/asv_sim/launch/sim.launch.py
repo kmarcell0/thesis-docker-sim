@@ -2,7 +2,8 @@
 (sensor frames, and world -> map, M2.8), the ground-truth TF node
 (world -> base_link, M2.8), the corruptor (realistic sensor data under
 /asv/sensors/..., M2.6d), the true buoy map publisher (/asv/ground_truth/buoys,
-latched, M2.7) and, if asked, RViz.
+latched, M2.7), the fake detector (/asv/perception/buoys, M3.1) and, if
+asked, RViz.
 
 Usage (from host):
   docker compose exec -T sim bash -ic \
@@ -16,6 +17,8 @@ Launch arguments:
                                         (for slam_node, M4.1: base_link may
                                         have only one parent)
   rviz           (default 'false')    – 'true' opens RViz with rviz/asv.rviz
+  fake_detector  (default 'true')     – 'false' to leave the fake detector out
+  detector       (default 'nominal')  – config/detector/<name>.yaml
 task1.launch.py and maneuver.launch.py include this file, so the same
 arguments work there (e.g. noise_profile:=mode_check).
 """
@@ -157,7 +160,21 @@ def _launch_setup(context, *args, **kwargs):
         )
     )
 
-    # ── 6. RViz live view (M2.8), off by default (headless runs) ──
+    # ── 6. Fake detector: ground truth + true map -> /asv/perception/buoys ──
+    # (M3.1, D8 a). Reads asv.yaml, asv_frames.yaml, asv_report.json and the
+    # detector file itself (fake_detector_node.cpp).
+    if _is_true(context, 'fake_detector'):
+        actions.append(
+            Node(
+                package='asv_sim',
+                executable='fake_detector',
+                name='fake_detector',
+                parameters=[{'detector': LaunchConfiguration('detector')}],
+                output='screen',
+            )
+        )
+
+    # ── 7. RViz live view (M2.8), off by default (headless runs) ──
     if _is_true(context, 'rviz'):
         actions.append(
             Node(
@@ -203,6 +220,16 @@ def generate_launch_description():
             'rviz',
             default_value='false',
             description='Set to "true" to open RViz with rviz/asv.rviz',
+        ),
+        DeclareLaunchArgument(
+            'fake_detector',
+            default_value='true',
+            description='Set to "false" to run without the fake detector',
+        ),
+        DeclareLaunchArgument(
+            'detector',
+            default_value='nominal',
+            description='Fake detector settings: config/detector/<name>.yaml',
         ),
         OpaqueFunction(function=_launch_setup),
     ])

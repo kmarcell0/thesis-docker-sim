@@ -192,16 +192,16 @@ raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M2.9): 137 Python tests, run with `unittest`; `colcon test`
-  for `asv_core` runs 57 gtests (`test_angles` 6, `test_geodesy` 7,
+  Current baseline (M3.1): 137 Python tests, run with `unittest`; `colcon test`
+  for `asv_core` runs 73 gtests (`test_angles` 6, `test_geodesy` 7,
   `test_noise` 19, about 20 s, `test_imu_corruptor` 8,
-  `test_gnss_corruptor` 17) and for
-  `asv_sim` 133 (`test_mix` 9, `test_guidance` 15, `test_control` 27,
+  `test_gnss_corruptor` 17, `test_fake_detector` 16) and for
+  `asv_sim` 138 (`test_mix` 9, `test_guidance` 15, `test_control` 27,
   `test_gate_monitor` 15, `test_follower` 11, `test_closed_loop` 7,
   `test_maneuver` 8, `test_maneuver_files` 3, `test_teleop` 9,
   `test_imu_corruption` 7, `test_gnss_corruption` 12, `test_buoy_map` 6,
-  `test_ground_truth_tf` 4);
-  `colcon test-result` counts 62 + 146 = 208, the extra eighteen are CTest's
+  `test_ground_truth_tf` 4, `test_fake_detection` 5);
+  `colcon test-result` counts 79 + 152 = 231, the extra twenty are CTest's
   wrappers, one per gtest binary.
   Report both numbers after every step.
 - **Python 3** for tools, launch files and offline analysis.
@@ -480,6 +480,24 @@ Update this section in the same commit as the step that changes it.
   393 MB, 2.9 GB per sim minute. The ZED runs at 15.15 Hz (4 ms step grid),
   so camera rates are not checked. Status topics only publish on change: a
   recording started after the manoeuvre or route began has none.
+- **Fake detector (M3.1, D8 a):** node `fake_detector`
+  (`src/fake_detector_node.cpp`, I/O only; started by `sim.launch.py`,
+  arguments `fake_detector:=true|false`, `detector:=<name>`; alone
+  `ros2 run asv_sim fake_detector --ros-args -p use_sim_time:=true`). Reads
+  `/asv/ground_truth/odom` and `/asv/ground_truth/buoys`, publishes
+  `/asv/perception/buoys` (BuoyDetectionArray, frame base_link, also when
+  empty, sorted by measured bearing). Scan = first odometry message of each
+  lidar period, its pose exactly (M3.1 A): 10.000 Hz, stamps on the 0.1 s
+  grid. Maths `asv_core/fake_detector.hpp` (`FakeDetector`, `ScanGrid`;
+  `RandomStream::uniform()` added to `noise.hpp`); glue
+  `asv_sim/fake_detection.hpp` (library `asv_sim_detector`) reads the limits
+  from `asv_report.json` (lidar ≥ 2 beams, cameras ≥ 20 px), positions from
+  `asv_frames.yaml`, hfov and lidar rate from `asv.yaml`. Settings
+  `config/detector/nominal.yaml` (M3.1 B, all [EST]): σ_r 0.10 m, σ_β
+  0.02 rad, P_miss 0, λ 0, mix-ups 0, centroid bias off, seed 1;
+  `indicator` and `other` borrow the Sur-Mark limits (`class_limits_as`).
+  No occlusion. True ids stay in `Detection::true_id` (for slam_replay),
+  never in the message.
 - **`asv_msgs` (M2.4):** interface package (rosidl, depends on `std_msgs`
   only): `BuoyColour`, `BuoyDetection(Array)`, `Landmark(Array)`,
   `GnssHeading`, `GnssStatus` (was planned as SensorStatus; renamed, M2.4 B b);
@@ -530,16 +548,17 @@ ws/                       colcon workspace, mounted in the container at /ws
                           tools/make_roboboat2026_course.py; static since M2.7)
     config/buoys_gt.yaml  GENERATED true buoy map (tools/make_buoy_map.py, M2.7)
     config/recording_profiles.yaml  topic lists of the recording profiles (M2.9)
+    config/detector/      fake detector settings, nominal.yaml (M3.1)
     worlds/               roboboat_course.sdf (course + boat), course.sdf
-    include/asv_sim/      ROS-free C++ (mix(), Route, LOS, control, gates, Follower, Maneuver, teleop keys) (from M1.2); imu_corruption.hpp, gnss_corruption.hpp (message glue, M2.6a/b/c); buoy_map.hpp (M2.7); ground_truth_tf.hpp (M2.8)
-    src/                  C++ library sources (mix, guidance, control, gate monitor, follower, maneuver, teleop, imu_corruption, gnss_corruption, buoy_map, ground_truth_tf); nodes waypoint_follower, maneuver_player, teleop, corruptor, buoy_map_publisher, ground_truth_tf
+    include/asv_sim/      ROS-free C++ (mix(), Route, LOS, control, gates, Follower, Maneuver, teleop keys) (from M1.2); imu_corruption.hpp, gnss_corruption.hpp (message glue, M2.6a/b/c); buoy_map.hpp (M2.7); ground_truth_tf.hpp (M2.8); fake_detection.hpp (M3.1)
+    src/                  C++ library sources (mix, guidance, control, gate monitor, follower, maneuver, teleop, imu_corruption, gnss_corruption, buoy_map, ground_truth_tf, fake_detection); nodes waypoint_follower, maneuver_player, teleop, corruptor, buoy_map_publisher, ground_truth_tf, fake_detector
     test/                 gtests for the C++ code                       (from M1.2)
     tools/                Python tools: make_asv.py (generator), studies, analysis, check_corruptor.py (M2.6d), make_buoy_map.py and measure_buoy_drift.py (M2.7), record.py and check_bag_rates.py (M2.9)
     tests/                Python tests of the generator and tools
-    launch/               sim.launch.py (Gazebo + bridge + static TF + ground-truth TF + corruptor + buoy map [+ RViz]), task launch files
+    launch/               sim.launch.py (Gazebo + bridge + static TF + ground-truth TF + corruptor + buoy map + fake detector [+ RViz]), task launch files
     rviz/                 asv.rviz: live view, fixed frame world (M2.8)
     docs/                 HOW_IT_WORKS.md (generator), milestone1_plan.md
-  src/asv_core/           ROS-free maths (D13 a): angles, geodesy (from M2.1), noise (M2.5), IMU corruptor (M2.6a), GNSS corruptor (M2.6b, M2.6c); gtests in test/
+  src/asv_core/           ROS-free maths (D13 a): angles, geodesy (from M2.1), noise (M2.5), IMU corruptor (M2.6a), GNSS corruptor (M2.6b, M2.6c), fake detector (M3.1); gtests in test/
   src/asv_msgs/           message types (from M2.4)
   src/asv_slam, asv_perception, asv_eval   (planned, see docs/design.md §12)
 ```

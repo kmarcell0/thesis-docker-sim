@@ -116,12 +116,32 @@ target_link_libraries(ground_truth_tf
   rclcpp::rclcpp
   tf2_ros::tf2_ros
 )
+# Fake detector (M3.1): the glue is its own library (ROS messages, no node),
+# so it is unit tested; the maths is asv_core::FakeDetector.
+add_library(asv_sim_detector src/fake_detection.cpp)
+target_include_directories(asv_sim_detector PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(asv_sim_detector PUBLIC
+  asv_core::asv_core
+  yaml-cpp::yaml-cpp
+  ${nav_msgs_TARGETS}
+  ${asv_msgs_TARGETS}
+)
+add_executable(fake_detector src/fake_detector_node.cpp)
+target_link_libraries(fake_detector
+  asv_sim_detector
+  rclcpp::rclcpp
+  ament_index_cpp::ament_index_cpp
+)
 install(TARGETS waypoint_follower maneuver_player teleop corruptor buoy_map_publisher
-  ground_truth_tf
+  ground_truth_tf fake_detector
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY include/ DESTINATION include)
 install(TARGETS asv_sim_guidance asv_sim_corruptor asv_sim_buoy_map asv_sim_tf
+  asv_sim_detector
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
   RUNTIME DESTINATION bin
@@ -183,6 +203,12 @@ if(BUILD_TESTING)
   # Ground-truth TF glue (M2.8).
   ament_add_gtest(test_ground_truth_tf test/test_ground_truth_tf.cpp)
   target_link_libraries(test_ground_truth_tf asv_sim_tf)
+  # Fake detector glue (M3.1): reads asv.yaml, asv_frames.yaml,
+  # asv_report.json, detector/nominal.yaml and buoys_gt.yaml.
+  ament_add_gtest(test_fake_detection test/test_fake_detection.cpp)
+  target_link_libraries(test_fake_detection asv_sim_detector asv_sim_buoy_map)
+  target_compile_definitions(test_fake_detection PRIVATE
+    ASV_CONFIG_DIR="${CMAKE_CURRENT_SOURCE_DIR}/config")
 endif()
 
 ament_package()

@@ -35,8 +35,12 @@ public:
   // Standard normal draw w ~ N(0, 1).
   double normal();
 
+  // Uniform draw u in [0, 1), from the top 53 bits of one engine output
+  // (M3.1: misses, false alarms and colour mix-ups of the fake detector).
+  double uniform();
+
 private:
-  // Uniform draw in [-1, 1), from the top 53 bits of one engine output.
+  // Uniform draw in [-1, 1): 2 u - 1.
   double uniform_pm1();
 
   std::mt19937_64 engine_;

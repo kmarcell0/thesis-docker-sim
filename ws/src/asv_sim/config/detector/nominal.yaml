@@ -1,0 +1,30 @@
+# Fake detector settings "nominal" (M3.1, design.md section 5; decision M3.1 B,
+# 2026-11-05: "clean-ish"). All values [EST]: the fake detector stands in for a
+# lidar + camera pipeline that is not built (M5 optional, D8), so nothing
+# measured backs them; M6 sweeps vary them.
+# Range limits per class and the camera geometry are NOT here: they come from
+# asv_report.json (lidar >= 2 beams, camera >= 20 px wide) [REPO], asv.yaml and
+# asv_frames.yaml, so they follow the boat description. Scan rate = lidar rate
+# in asv.yaml (10 Hz [DS]). All keys are required.
+
+seed: 1                           # own random streams "detector.*" (fake_detector.hpp)
+
+range_sigma: 0.10                 # [m] sigma_r [EST]: lidar range precision 0.02 m
+                                  #   [DS] plus the error of a centroid from a few points
+bearing_sigma: 0.02               # [rad] sigma_beta, ~1.1 deg [EST]: lidar horizontal
+                                  #   step 360/500 = 0.72 deg [REPO asv.yaml], centroid
+                                  #   of a few points
+miss_probability: 0.0             # [-] P_miss; switched on in M6 sweeps
+false_alarm_rate: 0.0             # [1/scan] lambda; switched on in M6 sweeps
+false_alarm_max_range: 18.75      # [m] false alarms uniform in range (0, this]
+                                  #   [EST] = the largest lidar limit (Sur-Mark)
+colour_error_probability: 0.0     # [-] p_c: a seen colour is the true colour
+centroid_bias: false              # range shortened by (pi/4) r_b (thesis, Static Landmarks)
+
+# Classes of buoys_gt.yaml that asv_report.json has no limits for: they use
+# another class's lidar and camera limits [EST]. Indicator buoys (r_b 0.32 m)
+# and vessels (r_b 0.65 m) are larger than a Sur-Mark (0.23 m), so the
+# Sur-Mark limits are on the short (conservative) side.
+class_limits_as:
+  indicator: Sur-Mark
+  other: Sur-Mark

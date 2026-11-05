@@ -57,11 +57,15 @@ RandomStream::RandomStream(std::uint64_t global_seed, const std::string & source
 {
 }
 
-double RandomStream::uniform_pm1()
+double RandomStream::uniform()
 {
   // 53 bits fill a double's mantissa exactly: u in [0, 1) with step 2^-53.
-  const double u = static_cast<double>(engine_() >> 11) * 0x1.0p-53;
-  return 2.0 * u - 1.0;
+  return static_cast<double>(engine_() >> 11) * 0x1.0p-53;
+}
+
+double RandomStream::uniform_pm1()
+{
+  return 2.0 * uniform() - 1.0;
 }
 
 double RandomStream::normal()

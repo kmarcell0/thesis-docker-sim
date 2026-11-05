@@ -390,8 +390,19 @@ Per-axis 1σ (decided 2026-11-02, M2.6b; h = east and north each, v = up; in
 
 ## 5. Fake detector
 
-Makes buoy measurements from ground truth (pose interpolated to the detection
-time) and `buoys_gt.yaml`.
+Makes buoy measurements from ground truth and the true map
+(`/asv/ground_truth/buoys`, from `buoys_gt.yaml`). Built in M3.1: logic
+`asv_core/fake_detector.hpp` (`FakeDetector`, `ScanGrid`), glue
+`asv_sim/fake_detection.hpp`, node `fake_detector` (started by `sim.launch.py`,
+arguments `fake_detector:=true|false`, `detector:=<name>`), settings
+`asv_sim/config/detector/<name>.yaml`.
+
+- **Scan time and pose** (decision M3.1 A, 2026-11-05): a scan is taken at the
+  first ground-truth odometry message of each lidar period (10 Hz from the
+  lidar rate in `asv.yaml`), with that message's pose exactly; no
+  interpolation. Odometry is on a 20 ms grid, so this is every fifth message
+  and the stamps are exact multiples of 0.1 s (live check: 10.000 Hz, std dev
+  0). The message stamp is the odometry stamp.
 
 - **Range and bearing** (lidar part): 360° around the boat, 10 Hz. Maximum range
   per buoy class from `asv_report.json` [REPO], where the lidar hits a buoy with at
@@ -400,11 +411,28 @@ time) and `buoys_gt.yaml`.
   but only inside a camera's field of view and range [REPO]:
   ZED 72° wide, up to 8.9 / 16.2 / 20.1 m (A-0 / A-2 / Sur-Mark, 20 px wide);
   wide camera 85°, up to 5.3 / 9.6 / 12.0 m. Elsewhere the colour is UNKNOWN.
+- Visibility is measured from the sensor (lidar or camera position in
+  base_link, from `asv_frames.yaml`); the cameras use only their horizontal
+  field of view, centred on the camera's yaw (both see the horizon). Classes
+  without a row in `asv_report.json` (`indicator`, `other` = vessels) borrow
+  the Sur-Mark limits (`class_limits_as` in the detector file, [EST]; both
+  are larger than a Sur-Mark, so the limits are on the short side).
 - Measurement: range r and bearing β from the base_link origin, in the level
   frame, with noise σ_r, σ_β [EST]. Misses with probability P_miss; false alarms
   at a rate λ per scan; colour mix-ups with a confusion probability (default 0,
   so a seen colour is the true colour); optional centroid bias of π·r_b/4 towards
   the boat (thesis, Static Landmarks).
+    r̃ = ‖m_j − p‖ − c·(π/4)·r_b + n_r,   β̃ = wrap(atan2(Δy, Δx) − ψ + n_β)
+  with n_r ~ N(0, σ_r²), n_β ~ N(0, σ_β²), c = 1 if the bias is on. False alarms:
+  Poisson(λ) per scan, bearing uniform in (−π, π], range uniform in
+  (0, `false_alarm_max_range`], colour UNKNOWN. A mix-up picks one of the other
+  three colours, each equally likely. Detections are sent sorted by measured
+  bearing, so their order tells the filter nothing about which buoy is which.
+- Nominal settings (`detector/nominal.yaml`, decision M3.1 B, 2026-11-05, all
+  [EST]): σ_r = 0.10 m, σ_β = 0.02 rad, P_miss = 0, λ = 0, mix-ups 0, bias
+  off, false alarms up to 18.75 m. Seed in the file; one random stream per
+  effect (`detector.range`, `.bearing`, `.miss`, `.colour`, `.false_alarm`).
+- Occlusion (a buoy hidden behind another) is not modelled: a limitation.
 - Other vessels in the course are reported as class "other". The filter must not
   map them.
 - The true buoy ID is logged by slam_replay for evaluation, but it is not part of
