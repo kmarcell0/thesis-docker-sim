@@ -1,0 +1,45 @@
+# Recording profiles (M2.9, design.md section 8). Each profile is a list of
+# topics to record with `ros2 bag record --use-sim-time`:
+#     python3 tools/record.py --profile nav --name <bag> [--duration <s>]
+# and checked afterwards with
+#     python3 tools/check_bag_rates.py /ws/data/bags/<bag> --profile nav
+#
+# topic: rate in Hz of simulation time, checked by check_bag_rates.py
+#        (count = rate x bag duration, within 1 %), or null = recorded but
+#        not checked (event topics, controller rate, every physics step).
+# `extends: <profile>` takes all topics of that profile first.
+# The rates are copies of asv.yaml / the generator; test_recording_profiles
+# checks that they agree.
+
+profiles:
+  nav:            # everything slam_replay needs (D4 a: it corrupts offline)
+    topics:
+      /clock: null                        # every physics step
+      /asv/ground_truth/odom: 50          # [REPO asvgen boat.py odom_publish_frequency]
+      /asv/imu/data: 200                  # [REPO asv.yaml pixhawk6x_icm45686.rate]
+      /asv/gnss/fix: 10                   # [REPO asv.yaml unicore_um982_rtk.rate]
+      /asv/gnss/secondary/fix: 10         # [REPO asv.yaml unicore_um982_rtk.rate]
+      /asv/thrusters/left/thrust: null    # controller rate
+      /asv/thrusters/left/pos: null
+      /asv/thrusters/right/thrust: null
+      /asv/thrusters/right/pos: null
+      # small extras (M2.9 Q2 a): a few kB per minute; analyze_run.py needs
+      # the autonomy status and cross-track error
+      /asv/ground_truth/buoys: null       # latched, once
+      /asv/autonomy/status: null          # on change
+      /asv/autonomy/cross_track_error: null
+      /asv/autonomy/target: null
+      /asv/maneuver/status: null          # on change
+
+  nav_lidar:      # + clean lidar (real perception, M5)
+    extends: nav
+    topics:
+      /asv/lidar/points: 10               # [REPO asv.yaml livox_mid360.rate]
+
+  perception:     # + ZED left image (camera colour, M5.2)
+    extends: nav_lidar
+    topics:
+      # not checked: asv.yaml says 15 Hz, but frames land on 4 ms physics
+      # steps (64/68 ms apart), so the camera runs at 15.15 Hz [MEASURED M2.9]
+      /asv/zed/left/image_raw: null
+      /asv/zed/left/camera_info: null

@@ -24,10 +24,8 @@ box.
 
 - **Explain first, then wait, then build**, for every step (the step protocol
   below).
-- **Never write thesis text**: no thesis paragraphs, no LaTeX thesis source, not
-  even as an example. Briefs, reports and docs are short bullet notes and equations, not
-  finished paragraphs. Scripts may generate figures and tables of numbers;
-  captions and any sentence around them are Marcell's.
+- Briefs, reports and docs are short bullet notes and equations, not finished
+  paragraphs.
 - Don't give model answers to the "check your understanding" questions unless he
   asks after trying.
 
@@ -61,6 +59,9 @@ LaTeX label if Marcell gives one), never by a guessed equation number.
    is `[?]`, ask Marcell for its decisions first.
 3. Tell Marcell in two lines where things stand and what the next step is.
 
+**When Marcell says `next`:** do the three checks above and post the brief of the
+next step right away (in plan mode if it is active). Don't ask first.
+
 ## The step protocol
 Work in the small steps of the master plan (M2.4, M3.1, ...). One step = one
 commit. Steps and rows marked "Optional" (M0.5, M5 "only if time", section M7) are
@@ -77,6 +78,9 @@ M1.8).
 **1. Brief (before touching any file).** Post it in chat, in plain language. Leave
 out items that would only say "none". It should fit on one screen.
 
+0. **In plain words**: one paragraph (4–8 sentences, everyday words, one
+   concrete example): what will happen in this step, why, and what does not
+   change. This is the one exception to "bullet notes, not paragraphs".
 1. **Goal**: one sentence.
 2. **Decisions needed**: open decisions (D-numbers) this step depends on, with the
    options and your recommendation. Never decide them yourself.
@@ -92,8 +96,8 @@ out items that would only say "none". It should fit on one screen.
    RViz, keyboard input).
 
 **Short form** for steps with no new idea and no equation (M0.1, M0.3, M0.4,
-M0.5, M2.9, small fixes Marcell asks for): goal, open decisions, files (with
-⚠ marks), how we check it, in about five lines. Still wait for his go.
+M0.5, M2.9, small fixes Marcell asks for): the plain-words paragraph, then goal,
+open decisions, files (with ⚠ marks), how we check it, in about five lines. Still wait for his go.
 
 **Progress bar** at the top of every brief (full and short form), built from
 the marks in `docs/master_plan.md`: one square per step, grouped by milestone in
@@ -188,7 +192,7 @@ raised in the brief.
   the LaTeX label if known) and maps code names to the symbols.
 - **Tests**: gtest for C++, `unittest` for Python. Every Jacobian is checked
   against a numerical derivative. Never weaken or skip a test to make it pass.
-  Current baseline (M2.8): 129 Python tests, run with `unittest`; `colcon test`
+  Current baseline (M2.9): 137 Python tests, run with `unittest`; `colcon test`
   for `asv_core` runs 57 gtests (`test_angles` 6, `test_geodesy` 7,
   `test_noise` 19, about 20 s, `test_imu_corruptor` 8,
   `test_gnss_corruptor` 17) and for
@@ -286,11 +290,14 @@ docker compose exec -T sim bash -ic "pkill -f 'ros2 launch'; pkill -f 'gz sim'; 
 ```
 Use `timeout` for anything that waits for messages, so commands never hang.
 
-Recording (profiles in `docs/design.md` §8); `timeout -s INT` stops the recorder
-cleanly so the bag is readable:
+Recording with a profile (`nav`, `nav_lidar`, `perception`; `docs/design.md` §8);
+the script stops the recorder with SIGINT so the bag is readable; then check it:
 ```
-docker compose exec -T sim bash -ic "timeout -s INT 60 ros2 bag record --use-sim-time -o /ws/data/bags/<name> --topics <topics>"
+docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/record.py --profile nav --name <name> --duration 60"
+docker compose exec -T sim bash -ic "cd /ws/src/asv_sim && python3 tools/check_bag_rates.py /ws/data/bags/<name> --profile nav"
 ```
+Other topic lists: `timeout -s INT 60 ros2 bag record --use-sim-time -o
+/ws/data/bags/<name> --topics <topics>`.
 Keyboard teleop (from M1.8 on) needs Marcell's own interactive terminal
 (`docker compose exec sim bash`, then `ros2 run asv_sim teleop --ros-args -p
 use_sim_time:=true`); you can't run or test the key input.
@@ -465,6 +472,14 @@ Update this section in the same commit as the step that changes it.
   ground-truth odometry, follower route); both reach `sim.launch.py` through
   task1 and maneuver. Live check: TF equals the odometry at its stamps
   (position diff 0, quaternion ≤ 1.1e-16).
+- **Recording profiles (M2.9):** `config/recording_profiles.yaml` (`nav` <
+  `nav_lidar` < `perception`, via `extends`), `tools/record.py`,
+  `tools/check_bag_rates.py` (count = rate × duration within 1 %). `nav` is
+  the clean-only input of slam_replay (no `/asv/sensors/...`, D4 a) plus the
+  true buoy map and the autonomy and manoeuvre topics (Q2 a). Measured: 8.2 MB,
+  393 MB, 2.9 GB per sim minute. The ZED runs at 15.15 Hz (4 ms step grid),
+  so camera rates are not checked. Status topics only publish on change: a
+  recording started after the manoeuvre or route began has none.
 - **`asv_msgs` (M2.4):** interface package (rosidl, depends on `std_msgs`
   only): `BuoyColour`, `BuoyDetection(Array)`, `Landmark(Array)`,
   `GnssHeading`, `GnssStatus` (was planned as SensorStatus; renamed, M2.4 B b);
@@ -514,11 +529,12 @@ ws/                       colcon workspace, mounted in the container at /ws
     models/rb26_*         RoboBoat 2026 course elements (generated by
                           tools/make_roboboat2026_course.py; static since M2.7)
     config/buoys_gt.yaml  GENERATED true buoy map (tools/make_buoy_map.py, M2.7)
+    config/recording_profiles.yaml  topic lists of the recording profiles (M2.9)
     worlds/               roboboat_course.sdf (course + boat), course.sdf
     include/asv_sim/      ROS-free C++ (mix(), Route, LOS, control, gates, Follower, Maneuver, teleop keys) (from M1.2); imu_corruption.hpp, gnss_corruption.hpp (message glue, M2.6a/b/c); buoy_map.hpp (M2.7); ground_truth_tf.hpp (M2.8)
     src/                  C++ library sources (mix, guidance, control, gate monitor, follower, maneuver, teleop, imu_corruption, gnss_corruption, buoy_map, ground_truth_tf); nodes waypoint_follower, maneuver_player, teleop, corruptor, buoy_map_publisher, ground_truth_tf
     test/                 gtests for the C++ code                       (from M1.2)
-    tools/                Python tools: make_asv.py (generator), studies, analysis, check_corruptor.py (M2.6d), make_buoy_map.py and measure_buoy_drift.py (M2.7)
+    tools/                Python tools: make_asv.py (generator), studies, analysis, check_corruptor.py (M2.6d), make_buoy_map.py and measure_buoy_drift.py (M2.7), record.py and check_bag_rates.py (M2.9)
     tests/                Python tests of the generator and tools
     launch/               sim.launch.py (Gazebo + bridge + static TF + ground-truth TF + corruptor + buoy map [+ RViz]), task launch files
     rviz/                 asv.rviz: live view, fixed frame world (M2.8)

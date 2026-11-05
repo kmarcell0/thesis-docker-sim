@@ -1574,3 +1574,86 @@ world ──(static, identity)──> map            (M4.1: map → base_link in
 **Done when:** for each profile, `ros2 bag info` counts equal rate × simulated
 duration within 1 % (IMU 200, GNSS 10, ground truth 50 Hz; lidar 10 Hz).
 **Decisions needed:** none. Short-form brief.
+
+### Brief (agreed on 2026-11-05)
+
+**In plain words:** recording a run into a bag is like a video recorder: you
+choose which channels (topics) to save. Too few and the filter can't be replayed
+later; everything and the cameras fill the disk with over 10 GB per minute. This
+step fixes three channel lists (profiles): `nav` (clean IMU, clean GNSS, ground
+truth, thruster commands, about 7 MB per minute; for all filter experiments),
+`nav_lidar` (+ lidar) and `perception` (+ ZED image, for the optional real
+perception), each started with one command, and a checker that proves nothing
+was lost: e.g. a 60 s run must hold 200 × 60 = 12 000 IMU messages, within 1 %.
+Nothing in the simulation, corruptor or boat changes; slam_replay (M3.5) will
+later read these `nav` bags.
+
+- **Goal:** profiles `nav`, `nav_lidar`, `perception`; counts = rate ×
+  simulated time within 1 %.
+- **Choices (2026-11-05):** Q1 a: profiles in `config/recording_profiles.yaml`,
+  started with `tools/record.py`; the checker reads the same file. Q2 a: `nav`
+  also records `/asv/autonomy/{status,cross_track_error,target}`,
+  `/asv/maneuver/status` and `/asv/ground_truth/buoys` (a few kB per minute;
+  `analyze_run.py` works on `nav` bags).
+- **Files:** new `config/recording_profiles.yaml`, `tools/record.py`,
+  `tools/check_bag_rates.py`, `tests/test_recording_profiles.py`; edited
+  `docs/design.md` §8 (measured sizes), CLAUDE.md (recording command, Known
+  state), this plan, `docs/master_plan.md`.
+- **Check:** Python unittests; headless sim + `maneuver:=circle`, record each
+  profile, checker: IMU 200, GNSS 10 (both fixes), ground truth 50, lidar 10 Hz
+  within 1 %.
+- Out of scope: `lazy` bridge entries (generator change, ask first).
+
+### Report (2026-11-05)
+
+**What changed**
+- `asv_sim/config/recording_profiles.yaml`: the three profiles; per topic the
+  checked rate (Hz) or `null`; `extends` chains nav < nav_lidar < perception.
+- `asv_sim/tools/record.py`: `profile_topics()` resolves a profile;
+  `record_command()` builds `ros2 bag record --use-sim-time -o ... --topics ...`;
+  `--duration` (wall s) then SIGINT; `--print` shows the command only.
+- `asv_sim/tools/check_bag_rates.py`: counts and duration from `metadata.yaml`,
+  `check_counts()`: |count − f·D| ≤ 1 % of f·D; prints MB per sim second;
+  exit 1 on a failure.
+- `asv_sim/tests/test_recording_profiles.py`: 8 tests (nesting, nav has what
+  replay needs and no `/asv/sensors/...`, every topic bridged or named in a
+  node's source, rates = asv.yaml / generator, cycles and duplicates, command,
+  checker pass/fail on a fake `metadata.yaml`).
+- `docs/design.md` §8 (commands, measured sizes), §13 (camera on the step grid);
+  CLAUDE.md (recording commands, Known state, layout, test baseline).
+
+**How it was checked**
+- `python3 -m unittest discover -s tests`: `Ran 137 tests ... OK` (129 + 8).
+- `colcon test --packages-select asv_sim`: 133 gtests, `colcon test-result`
+  Summary 208 tests, 0 errors, 0 failures (asv_core unchanged, 62 of them).
+- Headless sim, `maneuver:=circle`, `record.py` 60 / 60 / 30 wall s, then
+  `check_bag_rates.py`:
+
+| Profile | D (sim s) | odom 50 | IMU 200 | fix 10 | secondary 10 | lidar 10 | MB per sim min |
+|---|---|---|---|---|---|---|---|
+| nav | 53.66 | +0.01 % | +0.01 % | −0.10 % | −0.10 % | – | 8.2 |
+| nav_lidar | 51.19 | +0.02 % | 0.00 % | +0.02 % | +0.02 % | +0.02 % | 392.6 |
+| perception | 24.16 | +0.02 % | +0.02 % | +0.18 % | +0.18 % | −0.23 % | 2899.1 |
+
+  All PASS. `/asv/ground_truth/buoys`: 1 message (latched topic recorded).
+- Surprise (stopped and asked): ZED `camera_info` +1.01 % first failed. The
+  header stamps show no loss: frames 64/68 ms apart, 15.15 Hz in sim time
+  (4 ms physics step; 66.7 ms is not a whole number of steps). Decision
+  2026-11-05: camera rates recorded but not checked.
+
+**What could not be checked:** nothing needs the GUI. Status topics publish
+only on change, so they are empty when recording starts after the manoeuvre or
+route; start the recorder first if they are needed.
+
+**How to read the code:** `record.py` `profile_topics()` → `check_bag_rates.py`
+`read_metadata()` → `check_counts()` → `main()`.
+
+**Numbers for the thesis**
+- Recording sizes: 8.2 MB, 393 MB, 2.9 GB per simulated minute [MEASURED M2.9].
+- ZED effective rate 15.15 Hz (asv.yaml 15 Hz) [MEASURED M2.9]; lidar exactly
+  10 Hz; physics step 4 ms [REPO world SDF].
+
+**Check your understanding**
+1. Why does `nav` record the clean IMU and GNSS and not `/asv/sensors/...`?
+2. Why is a 100 ms lidar exact on the 4 ms grid but a 66.7 ms camera not?
+3. Why is the duration taken in sim time, not wall time?

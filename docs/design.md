@@ -516,14 +516,23 @@ crime, see glossary).
 
 ## 8. Recording profiles
 
-Data rates are calculated from the message sizes and rates in `asv.yaml`. Check
-them with `ros2 bag info` (M2.9).
+The topic lists are in `asv_sim/config/recording_profiles.yaml` (M2.9), with
+the rate each checked topic must have:
+```
+python3 tools/record.py --profile nav --name <bag> [--duration <wall s>]
+python3 tools/check_bag_rates.py /ws/data/bags/<bag> --profile nav
+```
+The check: count = rate × bag duration (sim time, `metadata.yaml` = `ros2 bag
+info`) within 1 %, for ground-truth odom 50, IMU 200, both GNSS fixes 10 and
+lidar 10 Hz. The ZED topics are recorded but not checked: frames land on 4 ms
+physics steps (64/68 ms apart), so the camera runs at 15.15 Hz, not 15
+[MEASURED M2.9].
 
-| Profile | Topics | Approx. rate |
+| Profile | Topics | Rate [MEASURED M2.9, bags `ws/data/bags/m29_*`] |
 |---|---|---|
-| `nav` | `/clock`, ground-truth odom, clean IMU, both clean GNSS fixes, thruster commands | about 0.1 MB/s (about 7 MB per minute) |
-| `nav_lidar` | `nav` + clean lidar | about 6.5 MB/s (about 0.4 GB per minute) |
-| `perception` | `nav_lidar` + ZED left image + camera_info | about 48 MB/s (about 3 GB per minute) |
+| `nav` | `/clock`, ground-truth odom, clean IMU, both clean GNSS fixes, thruster commands; also (M2.9 Q2 a) the true buoy map, autonomy status, cross-track error, target, manoeuvre status | 0.137 MB/s (8.2 MB per sim minute) |
+| `nav_lidar` | `nav` + clean lidar | 6.54 MB/s (393 MB per sim minute) |
+| `perception` | `nav_lidar` + ZED left image + camera_info | 48.3 MB/s (2.9 GB per sim minute) |
 | everything | all bridged topics incl. all cameras and the depth cloud | about 190-225 MB/s (over 10 GB per minute): don't |
 
 Sweeps with the fake detector need only `nav`. Real perception (M5, only if
@@ -718,6 +727,9 @@ Checked facts (gz-sensors / gz-sim source code and the repository):
 - Ground truth is published at 50 Hz; its twist is a 10-sample moving average of
   finite differences.
 - The IMU's samples land on 4 ms physics steps (intervals 8, 4, 4, 4 ms).
+- So do the camera frames: the ZED (15 Hz in `asv.yaml`) comes 64 or 68 ms
+  apart, 15.15 Hz on average [MEASURED M2.9]. The lidar's 100 ms is a whole
+  number of steps: exactly 10 Hz.
 - The lidar can't see the VRX water (`visibility_mask 7`).
 - Since M2.7 every buoy and vessel of the course is static (D7 a, D19 a); the
   true map is `config/buoys_gt.yaml` (`tools/make_buoy_map.py`), published latched
